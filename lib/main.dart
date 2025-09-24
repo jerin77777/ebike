@@ -68,6 +68,8 @@ void main() async {
     await windowManager.focus();
   });
 
+  listen();
+
   runApp(const MyApp());
 }
 
