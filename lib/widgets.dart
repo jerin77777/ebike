@@ -7,6 +7,207 @@ import 'package:google_fonts/google_fonts.dart';
 
 
 
+enum IndicatorDirection { none, left, right }
+
+class TurnIndicatorBar extends StatefulWidget {
+  final IndicatorDirection direction;
+  final double height;
+  final Duration speed;
+
+  const TurnIndicatorBar({
+    Key? key,
+    required this.direction,
+    this.height = 56,
+    this.speed = const Duration(milliseconds: 1400),
+  }) : super(key: key);
+
+  @override
+  State<TurnIndicatorBar> createState() => _TurnIndicatorBarState();
+}
+
+class _TurnIndicatorBarState extends State<TurnIndicatorBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.speed,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
+    _maybeAnimate();
+  }
+
+  @override
+  void didUpdateWidget(covariant TurnIndicatorBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.direction != widget.direction ||
+        oldWidget.speed != widget.speed) {
+      _controller.duration = widget.speed;
+      _maybeAnimate();
+    }
+  }
+
+  void _maybeAnimate() {
+    if (widget.direction == IndicatorDirection.none) {
+      _controller.stop();
+      _controller.reset();
+    } else {
+      if (!_controller.isAnimating) {
+        _controller.repeat();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool active = widget.direction != IndicatorDirection.none;
+    return IgnorePointer(
+      ignoring: true,
+      child: SizedBox(
+        height: widget.height,
+        width: double.infinity,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.35),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
+            ),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double width = constraints.maxWidth;
+              // progress 0..1 left-to-right; invert for right-to-left if needed
+              double t = _controller.value;
+              if (widget.direction == IndicatorDirection.right) {
+                t = 1 - t;
+              }
+              final double x = ui.lerpDouble(0, width, t) ?? 0;
+
+              return Stack(
+                children: [
+                  // Base line
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _IndicatorLinePainter(active: active),
+                    ),
+                  ),
+
+                  // Rolling blue light/glow
+                  if (active)
+                    Positioned(
+                      left: x - 24,
+                      bottom: 0,
+                      top: 0,
+                      width: 48,
+                      child: _RollingGlow(),
+                    ),
+
+                  // Bottom-right arrows showing direction
+                  Positioned(
+                    right: 12,
+                    bottom: 8,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ArrowIcon(
+                          isActive: widget.direction == IndicatorDirection.left,
+                          icon: Icons.keyboard_double_arrow_left,
+                        ),
+                        const SizedBox(width: 6),
+                        _ArrowIcon(
+                          isActive: widget.direction == IndicatorDirection.right,
+                          icon: Icons.keyboard_double_arrow_right,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArrowIcon extends StatelessWidget {
+  final bool isActive;
+  final IconData icon;
+  const _ArrowIcon({required this.isActive, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      icon,
+      size: 22,
+      color: isActive ? Colors.lightBlueAccent : Colors.white24,
+    );
+  }
+}
+
+class _RollingGlow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        // Vertical blue glow bar
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0x552196F3), // soft
+            Color(0x992196F3), // bright
+            Color(0x552196F3), // soft
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IndicatorLinePainter extends CustomPainter {
+  final bool active;
+  _IndicatorLinePainter({required this.active});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint base = Paint()
+      ..color = Colors.white.withOpacity(0.10)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final Offset p1 = Offset(12, size.height / 2);
+    final Offset p2 = Offset(size.width - 12, size.height / 2);
+    canvas.drawLine(p1, p2, base);
+
+    if (active) {
+      final Paint glow = Paint()
+        ..color = const Color(0x332196F3)
+        ..strokeWidth = 12
+        ..style = PaintingStyle.stroke
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawLine(p1, p2, glow);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _IndicatorLinePainter oldDelegate) {
+    return oldDelegate.active != active;
+  }
+}
+
 class ModeTabs extends StatelessWidget {
   final String selectedTab;
   final ValueChanged<String> onTabChanged;

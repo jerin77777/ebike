@@ -55,7 +55,11 @@ void main() async {
   print('Server listening on http://${server.address.address}:${server.port}');
 
   // ----- start WebSocket server for streaming (binary frames) -----
-  await _startWebSocketServer(address: InternetAddress.anyIPv4, port: 5001, path: '/ws');
+  await _startWebSocketServer(
+    address: InternetAddress.anyIPv4,
+    port: 5001,
+    path: '/ws',
+  );
 
   // ----- initialize window manager (desktop) -----
   await windowManager.ensureInitialized();
@@ -78,7 +82,8 @@ void main() async {
 /// Global in-memory image stream
 /// ---------------------------
 /// Broadcast so multiple widgets can listen if needed.
-final StreamController<Uint8List> imageStreamController = StreamController<Uint8List>.broadcast();
+final StreamController<Uint8List> imageStreamController =
+    StreamController<Uint8List>.broadcast();
 
 /// ---------------------------
 /// WebSocket streaming server
@@ -89,9 +94,15 @@ final StreamController<Uint8List> imageStreamController = StreamController<Uint8
 final Set<WebSocket> _wsClients = <WebSocket>{};
 bool _lastReverse = false;
 
-Future<void> _startWebSocketServer({required InternetAddress address, required int port, String path = '/ws'}) async {
+Future<void> _startWebSocketServer({
+  required InternetAddress address,
+  required int port,
+  String path = '/ws',
+}) async {
   final httpServer = await HttpServer.bind(address, port);
-  print('WebSocket server listening on ws://${httpServer.address.address}:$port$path');
+  print(
+    'WebSocket server listening on ws://${httpServer.address.address}:$port$path',
+  );
 
   // Forward reverse state changes to all connected clients as 'start'/'stop'
   reverseController.stream.listen((bool isReverse) {
@@ -102,7 +113,9 @@ Future<void> _startWebSocketServer({required InternetAddress address, required i
         ws.add(cmd);
       } catch (_) {
         _wsClients.remove(ws);
-        try { ws.close(); } catch (_) {}
+        try {
+          ws.close();
+        } catch (_) {}
       }
     }
   });
@@ -178,7 +191,8 @@ Future<Response> handleUpload(Request request) async {
     }
 
     // Optionally you can inspect Content-Type if you want to validate image type:
-    final contentType = request.headers['content-type'] ?? 'application/octet-stream';
+    final contentType =
+        request.headers['content-type'] ?? 'application/octet-stream';
     if (!(contentType.contains('jpeg') ||
         contentType.contains('jpg') ||
         contentType.contains('png') ||
@@ -190,7 +204,11 @@ Future<Response> handleUpload(Request request) async {
     // Emit into the in-memory stream for immediate UI display
     imageStreamController.add(Uint8List.fromList(bytes));
 
-    final result = {'status': 'ok', 'message': 'Image received', 'size': bytes.length};
+    final result = {
+      'status': 'ok',
+      'message': 'Image received',
+      'size': bytes.length,
+    };
     print("Received upload (${bytes.length} bytes), emitted to image stream");
     return Response(
       201,
@@ -248,6 +266,7 @@ class _InterfaceState extends State<Interface> {
   late SimpleAnimation _simpleAnim;
   StreamSubscription<double>? speedSub;
   StreamSubscription<int>? speedModeSub;
+  StreamSubscription<bool>? reverseSub;
   FocusNode focusNode = FocusNode();
 
   // Selected tab state
@@ -257,6 +276,9 @@ class _InterfaceState extends State<Interface> {
 
   // Show stream/fullscreen image
   bool _showStream = false;
+
+  // Turn indicator state
+  IndicatorDirection _indicatorDirection = IndicatorDirection.none;
 
   @override
   void initState() {
@@ -278,13 +300,13 @@ class _InterfaceState extends State<Interface> {
       speedModeSub = speedModeController.stream.listen((mode) {
         String tab;
         switch (mode) {
-          case 1:
+          case 2:
             tab = 'CRUISE';
             break;
-          case 2:
+          case 3:
             tab = 'SPORT';
             break;
-          case 3:
+          case 1:
           default:
             tab = 'ECO';
         }
@@ -295,12 +317,22 @@ class _InterfaceState extends State<Interface> {
     } catch (e) {
       // ignore if speedModeController isn't present
     }
+
+    // Listen to Raspberry Pi reverse state and toggle stream view
+    try {
+      reverseSub = reverseController.stream.listen((bool isReverse) {
+        _setShowStream(isReverse);
+      });
+    } catch (e) {
+      // ignore if reverseController isn't present
+    }
   }
 
   @override
   void dispose() {
     speedSub?.cancel();
     speedModeSub?.cancel();
+    reverseSub?.cancel();
     super.dispose();
   }
 
@@ -327,6 +359,15 @@ class _InterfaceState extends State<Interface> {
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        setState(() => _indicatorDirection = IndicatorDirection.left);
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        setState(() => _indicatorDirection = IndicatorDirection.right);
+      }
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        setState(() => _indicatorDirection = IndicatorDirection.none);
       }
     }
   }
@@ -377,17 +418,18 @@ class _InterfaceState extends State<Interface> {
                   ),
                 ),
               ],
-
-              // Controls always on top
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: Controls(
-                  initialDistanceKm: _distanceKm,
-                  onReversePressed: (pressed) {
-                    _setShowStream(pressed);
-                  },
+              // Indicator bar overlays at the very bottom regardless of mode
+              const Positioned.fill(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SizedBox.shrink(),
                 ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: TurnIndicatorBar(direction: _indicatorDirection),
               ),
             ],
           ),
@@ -416,14 +458,17 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
   void initState() {
     super.initState();
     // Subscribe to the global image stream:
-    _sub = imageStreamController.stream.listen((bytes) {
-      // Update UI immediately when bytes arrive
-      setState(() {
-        _latestBytes = bytes;
-      });
-    }, onError: (e) {
-      // ignore
-    });
+    _sub = imageStreamController.stream.listen(
+      (bytes) {
+        // Update UI immediately when bytes arrive
+        setState(() {
+          _latestBytes = bytes;
+        });
+      },
+      onError: (e) {
+        // ignore
+      },
+    );
   }
 
   @override
@@ -441,7 +486,8 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
               ? Image.memory(
                   _latestBytes!,
                   fit: BoxFit.cover,
-                  gaplessPlayback: true, // helps avoid flicker when bytes update quickly
+                  gaplessPlayback:
+                      true, // helps avoid flicker when bytes update quickly
                 )
               : Container(
                   color: Colors.black,
@@ -451,7 +497,10 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
                       children: const [
                         Icon(Icons.photo, size: 96, color: Colors.white24),
                         SizedBox(height: 12),
-                        Text('Waiting for image stream...', style: TextStyle(color: Colors.white38)),
+                        Text(
+                          'Waiting for image stream...',
+                          style: TextStyle(color: Colors.white38),
+                        ),
                       ],
                     ),
                   ),
@@ -467,10 +516,14 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black54,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
               onPressed: () {
-                final state = context.findAncestorStateOfType<_InterfaceState>();
+                final state = context
+                    .findAncestorStateOfType<_InterfaceState>();
                 state?._setShowStream(false);
               },
               child: const Text('Close', style: TextStyle(color: Colors.white)),
@@ -478,112 +531,6 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// ---------------------------
-/// Controls widget
-/// Simple card with a Reverse toggle button that notifies parent via onReversePressed.
-/// ---------------------------
-class Controls extends StatefulWidget {
-  final double initialDistanceKm;
-  final bool initialLightOn;
-  final ValueChanged<double>? onDistanceChanged;
-  final ValueChanged<bool>? onLightChanged;
-  final ValueChanged<bool>? onReversePressed;
-
-  const Controls({
-    Key? key,
-    this.initialDistanceKm = 0.0,
-    this.initialLightOn = false,
-    this.onDistanceChanged,
-    this.onLightChanged,
-    this.onReversePressed,
-  }) : super(key: key);
-
-  @override
-  State<Controls> createState() => _ControlsState();
-}
-
-class _ControlsState extends State<Controls> {
-  bool _reverse = false;
-  double _distanceKm = 0.0;
-  bool _lightOn = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _distanceKm = widget.initialDistanceKm;
-    _lightOn = widget.initialLightOn;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.black54,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Distance text and +/- just as a placeholder
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('${_distanceKm.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white)),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        setState(() => _distanceKm = max(0, _distanceKm - 0.1));
-                        widget.onDistanceChanged?.call(_distanceKm);
-                      },
-                      icon: const Icon(Icons.remove, color: Colors.white),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        setState(() => _distanceKm += 0.1);
-                        widget.onDistanceChanged?.call(_distanceKm);
-                      },
-                      icon: const Icon(Icons.add, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(width: 8),
-
-            // Light toggle
-            ElevatedButton(
-              onPressed: () {
-                setState(() => _lightOn = !_lightOn);
-                widget.onLightChanged?.call(_lightOn);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _lightOn ? Colors.orangeAccent : Colors.grey[800],
-              ),
-              child: Text(_lightOn ? 'Light ON' : 'Light OFF'),
-            ),
-
-            const SizedBox(width: 8),
-
-            // Reverse toggle (this is the important one)
-            ElevatedButton(
-              onPressed: () {
-                setState(() => _reverse = !_reverse);
-                widget.onReversePressed?.call(_reverse);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _reverse ? Colors.redAccent : Colors.grey[800],
-              ),
-              child: Text(_reverse ? 'Reverse ON' : 'Reverse OFF'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
