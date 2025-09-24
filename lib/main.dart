@@ -12,7 +12,7 @@ import 'dart:ui' as ui;
 
 import 'globals.dart';
 import 'server.dart';
-import 'speedometer.dart';
+import 'rasbperripi.dart';
 
 import 'package:window_manager/window_manager.dart';
 
@@ -178,6 +178,7 @@ class _InterfaceState extends State<Interface> {
   SMINumber? speedInput;
   late SimpleAnimation _simpleAnim;
   StreamSubscription<double>? speedSub;
+  StreamSubscription<int>? speedModeSub;
   FocusNode focusNode = FocusNode();
 
   // Selected tab state
@@ -202,11 +203,35 @@ class _InterfaceState extends State<Interface> {
     } catch (e) {
       // ignore if speedController isn't present
     }
+
+    // Listen to Raspberry Pi speed mode and reflect in ModeTabs
+    try {
+      speedModeSub = speedModeController.stream.listen((mode) {
+        String tab;
+        switch (mode) {
+          case 1:
+            tab = 'CRUISE';
+            break;
+          case 2:
+            tab = 'SPORT';
+            break;
+          case 3:
+          default:
+            tab = 'ECO';
+        }
+        if (tab != _selectedTab) {
+          setState(() => _selectedTab = tab);
+        }
+      });
+    } catch (e) {
+      // ignore if speedModeController isn't present
+    }
   }
 
   @override
   void dispose() {
     speedSub?.cancel();
+    speedModeSub?.cancel();
     super.dispose();
   }
 
