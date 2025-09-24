@@ -279,6 +279,7 @@ class _InterfaceState extends State<Interface> {
 
   // Turn indicator state
   IndicatorDirection _indicatorDirection = IndicatorDirection.right;
+  LightBeam _beam = LightBeam.low;
 
   @override
   void initState() {
@@ -325,6 +326,41 @@ class _InterfaceState extends State<Interface> {
       });
     } catch (e) {
       // ignore if reverseController isn't present
+    }
+
+    // Listen to Raspberry Pi light beam state
+    try {
+      lightController.stream.listen((String mode) {
+        final LightBeam next = (mode == 'high_beam') ? LightBeam.high : LightBeam.low;
+        if (next != _beam) {
+          setState(() => _beam = next);
+        }
+      });
+    } catch (e) {
+      // ignore if lightController isn't present
+    }
+
+    // Listen to Raspberry Pi indicator state
+    try {
+      indicatorController.stream.listen((String dir) {
+        IndicatorDirection next;
+        switch (dir) {
+          case 'left':
+            next = IndicatorDirection.left;
+            break;
+          case 'right':
+            next = IndicatorDirection.right;
+            break;
+          case 'none':
+          default:
+            next = IndicatorDirection.none;
+        }
+        if (next != _indicatorDirection) {
+          setState(() => _indicatorDirection = next);
+        }
+      });
+    } catch (e) {
+      // ignore if indicatorController isn't present
     }
   }
 
@@ -416,6 +452,11 @@ class _InterfaceState extends State<Interface> {
                     updateInterval: const Duration(seconds: 5),
                     onChanged: (p) {},
                   ),
+                ),
+                Positioned(
+                  top: 46,
+                  right: 8,
+                  child: BeamIndicator(beam: _beam),
                 ),
               ],
               // Indicator bar overlays at the very bottom regardless of mode

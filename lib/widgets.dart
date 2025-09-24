@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 
 enum IndicatorDirection { none, left, right }
+enum LightBeam { low, high }
 
 class TurnIndicatorBar extends StatefulWidget {
   final IndicatorDirection direction;
@@ -17,7 +18,7 @@ class TurnIndicatorBar extends StatefulWidget {
   const TurnIndicatorBar({
     Key? key,
     required this.direction,
-    this.height = 56,
+    this.height = 120,
     this.speed = const Duration(milliseconds: 1400),
   }) : super(key: key);
 
@@ -32,6 +33,7 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
   @override
   void initState() {
     super.initState();
+    
     _controller = AnimationController(
       vsync: this,
       duration: widget.speed,
@@ -76,40 +78,26 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
       child: SizedBox(
         height: widget.height,
         width: double.infinity,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-            border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
-            ),
-          ),
-          child: LayoutBuilder(
+        child: LayoutBuilder(
             builder: (context, constraints) {
               final double width = constraints.maxWidth;
               // progress 0..1 left-to-right; invert for right-to-left if needed
               double t = _controller.value;
-              if (widget.direction == IndicatorDirection.right) {
+              if (widget.direction == IndicatorDirection.left) {
                 t = 1 - t;
               }
               final double x = ui.lerpDouble(0, width, t) ?? 0;
 
               return Stack(
                 children: [
-                  // Base line
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _IndicatorLinePainter(active: active),
-                    ),
-                  ),
-
-                  // Rolling blue light/glow
+                  // Subsurface rolling blue glow from below the bottom edge
                   if (active)
                     Positioned(
-                      left: x - 24,
-                      bottom: 0,
-                      top: 0,
-                      width: 48,
-                      child: _RollingGlow(),
+                      left: x - 140,
+                      bottom: -36, // center below the bottom edge
+                      width: 280,
+                      height: widget.height + 72,
+                      child: const _SubsurfaceGlow(),
                     ),
 
                   // Bottom-right arrows showing direction
@@ -156,24 +144,62 @@ class _ArrowIcon extends StatelessWidget {
   }
 }
 
-class _RollingGlow extends StatelessWidget {
+class _SubsurfaceGlow extends StatelessWidget {
+  const _SubsurfaceGlow();
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        // Vertical blue glow bar
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0x552196F3), // soft
-            Color(0x992196F3), // bright
-            Color(0x552196F3), // soft
-          ],
-        ),
-      ),
+    return CustomPaint(
+      painter: _SubsurfaceGlowPainter(),
     );
   }
+}
+
+class _SubsurfaceGlowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw a soft elliptical glow whose center sits below the bottom edge.
+    final double radius = size.width * 0.45;
+    final double centerBelow = size.height * 0.55; // how far below bottom
+
+    final Paint paint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(size.width / 2, size.height + centerBelow),
+        radius,
+        const [
+          Color(0xFF2196F3),
+          Color(0x802196F3),
+          Color(0x1A2196F3),
+          Colors.transparent,
+        ],
+        const [0.0, 0.18, 0.55, 1.0],
+      )
+      ..blendMode = BlendMode.plus;
+
+    // Scale vertically to make it more like a horizon glow.
+    canvas.save();
+    canvas.scale(1.0, 0.45);
+    canvas.drawCircle(
+      Offset(size.width / 2, (size.height + centerBelow) / 0.45),
+      radius,
+      paint,
+    );
+    canvas.restore();
+
+    // Optional faint top fade to mimic foggy horizon
+    final Rect topFade = Rect.fromLTWH(0, 0, size.width, size.height);
+    final Paint fadePaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, 0),
+        Offset(0, size.height),
+        [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.35)],
+        const [0.0, 1.0],
+      );
+    canvas.drawRect(topFade, fadePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _IndicatorLinePainter extends CustomPainter {
@@ -205,6 +231,46 @@ class _IndicatorLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _IndicatorLinePainter oldDelegate) {
     return oldDelegate.active != active;
+  }
+}
+
+class BeamIndicator extends StatelessWidget {
+  final LightBeam beam;
+  const BeamIndicator({Key? key, required this.beam}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isHigh = beam == LightBeam.high;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isHigh ? const Color(0x332196F3) : Colors.white12,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isHigh ? Colors.lightBlueAccent.withOpacity(0.7) : Colors.white24,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.light_mode,
+            size: 18,
+            color: isHigh ? Colors.lightBlueAccent : Colors.white70,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isHigh ? 'HIGH' : 'LOW',
+            style: GoogleFonts.spaceGrotesk(
+              color: isHigh ? Colors.lightBlueAccent : Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
