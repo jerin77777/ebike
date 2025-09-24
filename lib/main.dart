@@ -278,7 +278,7 @@ class _InterfaceState extends State<Interface> {
   bool _showStream = false;
 
   // Turn indicator state
-  IndicatorDirection _indicatorDirection = IndicatorDirection.none;
+  IndicatorDirection _indicatorDirection = IndicatorDirection.right;
 
   @override
   void initState() {
