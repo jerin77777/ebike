@@ -8,10 +8,8 @@ import 'package:ebike/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rive/rive.dart' hide LinearGradient, Image;
-import 'dart:ui' as ui;
 
 import 'globals.dart';
-import 'server.dart';
 import 'rasbperripi.dart';
 
 import 'package:window_manager/window_manager.dart';
@@ -56,6 +54,9 @@ void main() async {
   final server = await io.serve(handler, InternetAddress.anyIPv4, 5000);
   print('Server listening on http://${server.address.address}:${server.port}');
 
+  // ----- start WebSocket server for streaming (binary frames) -----
+  await _startWebSocketServer(address: InternetAddress.anyIPv4, port: 5001, path: '/ws');
+
   // ----- initialize window manager (desktop) -----
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
@@ -78,6 +79,72 @@ void main() async {
 /// ---------------------------
 /// Broadcast so multiple widgets can listen if needed.
 final StreamController<Uint8List> imageStreamController = StreamController<Uint8List>.broadcast();
+
+/// ---------------------------
+/// WebSocket streaming server
+/// - Accepts upgrades on /ws
+/// - Receives binary frames and forwards to imageStreamController
+/// - Broadcasts 'start'/'stop' to all clients when reverseController changes
+/// ---------------------------
+final Set<WebSocket> _wsClients = <WebSocket>{};
+bool _lastReverse = false;
+
+Future<void> _startWebSocketServer({required InternetAddress address, required int port, String path = '/ws'}) async {
+  final httpServer = await HttpServer.bind(address, port);
+  print('WebSocket server listening on ws://${httpServer.address.address}:$port$path');
+
+  // Forward reverse state changes to all connected clients as 'start'/'stop'
+  reverseController.stream.listen((bool isReverse) {
+    _lastReverse = isReverse;
+    final String cmd = isReverse ? 'start' : 'stop';
+    for (final ws in _wsClients.toList()) {
+      try {
+        ws.add(cmd);
+      } catch (_) {
+        _wsClients.remove(ws);
+        try { ws.close(); } catch (_) {}
+      }
+    }
+  });
+
+  httpServer.listen((HttpRequest request) async {
+    if (request.uri.path != path) {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+      return;
+    }
+    try {
+      final ws = await WebSocketTransformer.upgrade(request);
+      _wsClients.add(ws);
+      // Send current reverse state to new client
+      ws.add(_lastReverse ? 'start' : 'stop');
+      ws.listen(
+        (dynamic data) {
+          // If client sends binary frames, forward to UI
+          if (data is List<int>) {
+            imageStreamController.add(Uint8List.fromList(data));
+          } else if (data is String) {
+            // Text messages can be logged or used for status
+            // No-op
+          }
+        },
+        onError: (_) {
+          _wsClients.remove(ws);
+        },
+        onDone: () {
+          _wsClients.remove(ws);
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      try {
+        request.response.statusCode = HttpStatus.internalServerError;
+        request.response.write('WS upgrade failed');
+        await request.response.close();
+      } catch (_) {}
+    }
+  });
+}
 
 /// ---------------------------
 /// Upload handler (in-memory)
