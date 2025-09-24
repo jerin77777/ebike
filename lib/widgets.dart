@@ -20,7 +20,7 @@ class TurnIndicatorBar extends StatefulWidget {
     Key? key,
     required this.direction,
     this.beam = LightBeam.low,
-    this.height = 120,
+    this.height = 140,
     this.speed = const Duration(milliseconds: 1400),
   }) : super(key: key);
 
@@ -91,14 +91,15 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
               final double x = ui.lerpDouble(0, width, t) ?? 0;
 
               return Stack(
+                clipBehavior: Clip.none,
                 children: [
                   // Subsurface rolling blue glow from below the bottom edge
                   if (active)
                     Positioned(
                       left: x - 140,
-                      bottom: -36, // center below the bottom edge
-                      width: 280,
-                      height: widget.height + 72,
+                      bottom: 0,
+                      width: 320,
+                      height: widget.height,
                       child: const _SubsurfaceGlow(),
                     ),
 
@@ -171,8 +172,8 @@ class _SubsurfaceGlowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Draw a soft elliptical glow whose center sits below the bottom edge.
-    final double radius = size.width * 0.45;
-    final double centerBelow = size.height * 0.55; // how far below bottom
+    final double radius = size.width * 0.60;
+    final double centerBelow = size.height * 0.35; // how far below bottom
 
     final Paint paint = Paint()
       ..shader = ui.Gradient.radial(
@@ -180,17 +181,17 @@ class _SubsurfaceGlowPainter extends CustomPainter {
         radius,
         const [
           Color(0xFF2196F3),
-          Color(0x802196F3),
-          Color(0x1A2196F3),
+          Color(0x992196F3),
+          Color(0x402196F3),
           Colors.transparent,
         ],
-        const [0.0, 0.18, 0.55, 1.0],
+        const [0.0, 0.20, 0.60, 1.0],
       )
       ..blendMode = BlendMode.plus;
 
     // Scale vertically to make it more like a horizon glow.
     canvas.save();
-    canvas.scale(1.0, 0.45);
+    canvas.scale(1.0, 0.55);
     canvas.drawCircle(
       Offset(size.width / 2, (size.height + centerBelow) / 0.45),
       radius,
