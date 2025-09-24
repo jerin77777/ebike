@@ -121,14 +121,14 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                                 : Colors.white38,
                           ),
                         ),
-                        _ArrowIcon(
+                        _NeonArrow(
                           isActive: widget.direction == IndicatorDirection.left,
-                          icon: Icons.keyboard_double_arrow_left,
+                          isRight: false,
                         ),
                         const SizedBox(width: 6),
-                        _ArrowIcon(
+                        _NeonArrow(
                           isActive: widget.direction == IndicatorDirection.right,
-                          icon: Icons.keyboard_double_arrow_right,
+                          isRight: true,
                         ),
                       ],
                     ),
@@ -142,18 +142,115 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
   }
 }
 
-class _ArrowIcon extends StatelessWidget {
+class _NeonArrow extends StatelessWidget {
   final bool isActive;
-  final IconData icon;
-  const _ArrowIcon({required this.isActive, required this.icon});
+  final bool isRight; // false => left
+  const _NeonArrow({required this.isActive, required this.isRight});
 
   @override
   Widget build(BuildContext context) {
-    return Icon(
-      icon,
-      size: 22,
-      color: isActive ? Colors.lightBlueAccent : Colors.white24,
+    // Size tuned to roughly match previous icon size
+    const double width = 28;
+    const double height = 20;
+    Widget arrow = CustomPaint(
+      size: const Size(width, height),
+      painter: _NeonArrowPainter(isActive: isActive, isRight: isRight),
     );
+    return arrow;
+  }
+}
+
+class _NeonArrowPainter extends CustomPainter {
+  final bool isActive;
+  final bool isRight;
+  _NeonArrowPainter({required this.isActive, required this.isRight});
+
+  Path _buildArrowPath(Size size, bool right) {
+    final double w = size.width;
+    final double h = size.height;
+    final double bodyH = h * 0.62; // thickness of the shaft
+    final double radius = bodyH * 0.38; // corner radius
+    final double headW = w * 0.40; // width of the arrow head
+    final double shaftW = w - headW; // width of the rounded shaft
+    final double cy = h / 2;
+    final double top = cy - bodyH / 2;
+    final double bottom = cy + bodyH / 2;
+
+    final Path p = Path();
+
+    if (right) {
+      // Start at back-left rounded corner
+      p.moveTo(radius, top);
+      p.arcToPoint(Offset(0, cy), radius: Radius.circular(radius), clockwise: false);
+      p.arcToPoint(Offset(radius, bottom), radius: Radius.circular(radius), clockwise: false);
+      p.lineTo(shaftW - radius, bottom);
+      p.arcToPoint(Offset(shaftW, cy + bodyH / 2 - radius), radius: Radius.circular(radius));
+      // Join into the head triangle with slight rounding
+      p.lineTo(shaftW, cy + bodyH * 0.25);
+      p.lineTo(w, cy);
+      p.lineTo(shaftW, cy - bodyH * 0.25);
+      p.lineTo(shaftW, cy - bodyH / 2 + radius);
+      p.arcToPoint(Offset(shaftW - radius, top), radius: Radius.circular(radius));
+      p.close();
+    } else {
+      // Mirror for left
+      final double leftHead = headW;
+      p.moveTo(w - radius, top);
+      p.arcToPoint(Offset(w, cy), radius: Radius.circular(radius), clockwise: true);
+      p.arcToPoint(Offset(w - radius, bottom), radius: Radius.circular(radius), clockwise: true);
+      p.lineTo(leftHead + radius, bottom);
+      p.arcToPoint(Offset(leftHead, cy + bodyH / 2 - radius), radius: Radius.circular(radius), clockwise: true);
+      p.lineTo(leftHead, cy + bodyH * 0.25);
+      p.lineTo(0, cy);
+      p.lineTo(leftHead, cy - bodyH * 0.25);
+      p.lineTo(leftHead, cy - bodyH / 2 + radius);
+      p.arcToPoint(Offset(leftHead + radius, top), radius: Radius.circular(radius), clockwise: true);
+      p.close();
+    }
+    return p;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path path = _buildArrowPath(size, isRight);
+
+    // Colors tuned to resemble neon green with darker inner shade
+    const Color neon = Color(0xFF2EFF3E);
+    const Color neonEdge = Color(0xFF27D736);
+    const Color innerDark = Color(0xFF0B5F1D);
+
+    // Outer glow when active
+    if (isActive) {
+      final Paint glow = Paint()
+        ..color = neon.withOpacity(0.55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+      canvas.drawPath(path, glow);
+    }
+
+    // Fill with subtle radial-ish gradient simulated by linear
+    final Rect bounds = path.getBounds();
+    final Paint fill = Paint()
+      ..shader = ui.Gradient.linear(
+        bounds.topLeft,
+        bounds.bottomRight,
+        [neon, innerDark],
+        const [0.0, 1.0],
+      )
+      ..style = PaintingStyle.fill
+      ..colorFilter = isActive ? null : const ui.ColorFilter.mode(Colors.white24, BlendMode.modulate);
+    canvas.drawPath(path, fill);
+
+    // Edge highlight
+    final Paint stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..color = isActive ? neonEdge : Colors.white30;
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _NeonArrowPainter oldDelegate) {
+    return oldDelegate.isActive != isActive || oldDelegate.isRight != isRight;
   }
 }
 
