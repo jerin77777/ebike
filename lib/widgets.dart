@@ -12,12 +12,14 @@ enum LightBeam { low, high }
 
 class TurnIndicatorBar extends StatefulWidget {
   final IndicatorDirection direction;
+  final LightBeam beam;
   final double height;
   final Duration speed;
 
   const TurnIndicatorBar({
     Key? key,
     required this.direction,
+    this.beam = LightBeam.low,
     this.height = 120,
     this.speed = const Duration(milliseconds: 1400),
   }) : super(key: key);
@@ -107,6 +109,17 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Beam icon just above arrows
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Icon(
+                            Icons.light_mode,
+                            size: 18,
+                            color: widget.beam == LightBeam.high
+                                ? Colors.lightBlueAccent
+                                : Colors.white38,
+                          ),
+                        ),
                         _ArrowIcon(
                           isActive: widget.direction == IndicatorDirection.left,
                           icon: Icons.keyboard_double_arrow_left,

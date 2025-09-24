@@ -453,11 +453,7 @@ class _InterfaceState extends State<Interface> {
                     onChanged: (p) {},
                   ),
                 ),
-                Positioned(
-                  top: 46,
-                  right: 8,
-                  child: BeamIndicator(beam: _beam),
-                ),
+                // Removed separate BeamIndicator; now shown in TurnIndicatorBar
               ],
               // Indicator bar overlays at the very bottom regardless of mode
               const Positioned.fill(
@@ -470,7 +466,10 @@ class _InterfaceState extends State<Interface> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: TurnIndicatorBar(direction: _indicatorDirection),
+                child: TurnIndicatorBar(
+                  direction: _indicatorDirection,
+                  beam: _beam,
+                ),
               ),
             ],
           ),
