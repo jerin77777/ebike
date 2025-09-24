@@ -124,8 +124,7 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
             },
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
