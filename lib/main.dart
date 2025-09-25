@@ -272,7 +272,6 @@ class _InterfaceState extends State<Interface> {
   // Selected tab state
   String _selectedTab = 'SPORT';
 
-
   // Show stream/fullscreen image
   bool _showStream = false;
 
@@ -330,7 +329,9 @@ class _InterfaceState extends State<Interface> {
     // Listen to Raspberry Pi light beam state
     try {
       lightController.stream.listen((String mode) {
-        final LightBeam next = (mode == 'high_beam') ? LightBeam.high : LightBeam.low;
+        final LightBeam next = (mode == 'high_beam')
+            ? LightBeam.high
+            : LightBeam.low;
         if (next != _beam) {
           setState(() => _beam = next);
         }
@@ -422,56 +423,59 @@ class _InterfaceState extends State<Interface> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: SafeArea(
-          child: Stack(
-            children: [
-              // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
-              if (_showStream)
-                const Positioned.fill(child: StreamViewWrapper())
-              else ...[
-                Center(
-                  child: SizedBox(
-                    width: 700,
-                    height: 700,
-                    child: RiveAnimation.asset(
-                      'assets/speedometer.riv',
-                      onInit: _onRiveInit,
-                      fit: BoxFit.cover,
+          child: Transform.rotate(
+            angle: pi, // 180 degrees rotation
+            child: Stack(
+              children: [
+                // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
+                if (_showStream)
+                  const Positioned.fill(child: StreamViewWrapper())
+                else ...[
+                  Center(
+                    child: SizedBox(
+                      width: 700,
+                      height: 700,
+                      child: RiveAnimation.asset(
+                        'assets/speedometer.riv',
+                        onInit: _onRiveInit,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-                ModeTabs(
-                  selectedTab: _selectedTab,
-                  onTabChanged: (tab) => setState(() => _selectedTab = tab),
-                ),
-                const Positioned(top: 8, left: 8, child: TimeWidget()),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: BatteryWidget(
-                    initialPercent: 87,
-                    updateInterval: const Duration(seconds: 5),
-                    onChanged: (p) {},
+                  ModeTabs(
+                    selectedTab: _selectedTab,
+                    onTabChanged: (tab) => setState(() => _selectedTab = tab),
+                  ),
+                  const Positioned(top: 8, left: 8, child: TimeWidget()),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: BatteryWidget(
+                      initialPercent: 87,
+                      updateInterval: const Duration(seconds: 5),
+                      onChanged: (p) {},
+                    ),
+                  ),
+                  // Removed separate BeamIndicator; now shown in TurnIndicatorBar
+                ],
+                // Indicator bar overlays at the very bottom regardless of mode
+                const Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SizedBox.shrink(),
                   ),
                 ),
-                // Removed separate BeamIndicator; now shown in TurnIndicatorBar
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: TurnIndicatorBar(
+                    direction: _indicatorDirection,
+                    beam: _beam,
+                  ),
+                ),
               ],
-              // Indicator bar overlays at the very bottom regardless of mode
-              const Positioned.fill(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: SizedBox.shrink(),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: TurnIndicatorBar(
-                  direction: _indicatorDirection,
-                  beam: _beam,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -519,58 +523,61 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: _latestBytes != null
-              ? Image.memory(
-                  _latestBytes!,
-                  fit: BoxFit.cover,
-                  gaplessPlayback:
-                      true, // helps avoid flicker when bytes update quickly
-                )
-              : Container(
-                  color: Colors.black,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.photo, size: 96, color: Colors.white24),
-                        SizedBox(height: 12),
-                        Text(
-                          'Waiting for image stream...',
-                          style: TextStyle(color: Colors.white38),
-                        ),
-                      ],
+    return Transform.rotate(
+      angle: pi, // 180 degrees rotation to match main interface
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: _latestBytes != null
+                ? Image.memory(
+                    _latestBytes!,
+                    fit: BoxFit.cover,
+                    gaplessPlayback:
+                        true, // helps avoid flicker when bytes update quickly
+                  )
+                : Container(
+                    color: Colors.black,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.photo, size: 96, color: Colors.white24),
+                          SizedBox(height: 12),
+                          Text(
+                            'Waiting for image stream...',
+                            style: TextStyle(color: Colors.white38),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-        ),
+          ),
 
-        // Close button
-        Positioned(
-          top: 12,
-          left: 12,
-          child: SafeArea(
-            minimum: const EdgeInsets.all(4),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black54,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+          // Close button
+          Positioned(
+            top: 12,
+            left: 12,
+            child: SafeArea(
+              minimum: const EdgeInsets.all(4),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
+                onPressed: () {
+                  final state = context
+                      .findAncestorStateOfType<_InterfaceState>();
+                  state?._setShowStream(false);
+                },
+                child: const Text('Close', style: TextStyle(color: Colors.white)),
               ),
-              onPressed: () {
-                final state = context
-                    .findAncestorStateOfType<_InterfaceState>();
-                state?._setShowStream(false);
-              },
-              child: const Text('Close', style: TextStyle(color: Colors.white)),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
