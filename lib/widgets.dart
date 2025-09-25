@@ -5,9 +5,8 @@ import 'package:ebike/globals.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-
-
 enum IndicatorDirection { none, left, right }
+
 enum LightBeam { low, high }
 
 class TurnIndicatorBar extends StatefulWidget {
@@ -35,11 +34,9 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
   @override
   void initState() {
     super.initState();
-    
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.speed,
-    )..addListener(() {
+
+    _controller = AnimationController(vsync: this, duration: widget.speed)
+      ..addListener(() {
         if (mounted) setState(() {});
       });
     _maybeAnimate();
@@ -81,64 +78,64 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
         height: widget.height,
         width: double.infinity,
         child: LayoutBuilder(
-            builder: (context, constraints) {
-              final double width = constraints.maxWidth;
-              // progress 0..1 left-to-right; invert for right-to-left if needed
-              double t = _controller.value;
-              if (widget.direction == IndicatorDirection.left) {
-                t = 1 - t;
-              }
-              final double x = ui.lerpDouble(0, width, t) ?? 0;
+          builder: (context, constraints) {
+            final double width = constraints.maxWidth;
+            // progress 0..1 left-to-right; invert for right-to-left if needed
+            double t = _controller.value;
+            if (widget.direction == IndicatorDirection.left) {
+              t = 1 - t;
+            }
+            final double x = ui.lerpDouble(0, width, t) ?? 0;
 
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Subsurface rolling blue glow from below the bottom edge
-                  if (active)
-                    Positioned(
-                      left: x - 140,
-                      bottom: 0,
-                      width: 320,
-                      height: widget.height,
-                      child: const _SubsurfaceGlow(),
-                    ),
-
-                  // Bottom-right arrows showing direction
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Subsurface rolling blue glow from below the bottom edge
+                if (active)
                   Positioned(
-                    right: 12,
-                    bottom: 8,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Beam icon just above arrows
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Icon(
-                            Icons.light_mode,
-                            size: 18,
-                            color: widget.beam == LightBeam.high
-                                ? Colors.lightBlueAccent
-                                : Colors.white38,
-                          ),
-                        ),
-                        _NeonArrow(
-                          isActive: widget.direction == IndicatorDirection.left,
-                          isRight: false,
-                        ),
-                        const SizedBox(width: 6),
-                        _NeonArrow(
-                          isActive: widget.direction == IndicatorDirection.right,
-                          isRight: true,
-                        ),
-                      ],
-                    ),
+                    left: x - 140,
+                    bottom: 0,
+                    width: 320,
+                    height: widget.height,
+                    child: const _SubsurfaceGlow(),
                   ),
-                ],
-              );
-            },
-          ),
+
+                // Bottom-right arrows showing direction
+                Positioned(
+                  right: 12,
+                  bottom: 8,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Beam icon just above arrows
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Icon(
+                          Icons.light_mode,
+                          size: 18,
+                          color: widget.beam == LightBeam.high
+                              ? Colors.lightBlueAccent
+                              : Colors.white38,
+                        ),
+                      ),
+                      _NeonArrow(
+                        isActive: widget.direction == IndicatorDirection.left,
+                        isRight: false,
+                      ),
+                      const SizedBox(width: 6),
+                      _NeonArrow(
+                        isActive: widget.direction == IndicatorDirection.right,
+                        isRight: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-      );
+      ),
+    );
   }
 }
 
@@ -151,7 +148,8 @@ class _NeonArrow extends StatefulWidget {
   State<_NeonArrow> createState() => _NeonArrowState();
 }
 
-class _NeonArrowState extends State<_NeonArrow> with SingleTickerProviderStateMixin {
+class _NeonArrowState extends State<_NeonArrow>
+    with SingleTickerProviderStateMixin {
   late AnimationController _blinkController;
   late Animation<double> _blinkAnimation;
 
@@ -162,8 +160,11 @@ class _NeonArrowState extends State<_NeonArrow> with SingleTickerProviderStateMi
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    _blinkAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_blinkController);
-    
+    _blinkAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_blinkController);
+
     if (widget.isActive) {
       _blinkController.repeat(reverse: true);
     }
@@ -193,19 +194,22 @@ class _NeonArrowState extends State<_NeonArrow> with SingleTickerProviderStateMi
     // Size tuned to roughly match previous icon size
     const double width = 28;
     const double height = 20;
-    
+
     return AnimatedBuilder(
       animation: _blinkAnimation,
       builder: (context, child) {
         // Toggle between filled and outline based on animation value
         final bool filled = widget.isActive && _blinkAnimation.value > 0.5;
-        
-        return CustomPaint(
-          size: const Size(width, height),
-          painter: _NeonArrowPainter(
-            isActive: widget.isActive, 
-            isRight: widget.isRight,
-            filled: filled,
+
+        return SizedBox(
+          width: width,
+          height: height,
+          child: CustomPaint(
+            painter: _NeonArrowPainter(
+              isActive: widget.isActive,
+              isRight: widget.isRight,
+              filled: filled,
+            ),
           ),
         );
       },
@@ -219,7 +223,11 @@ class _NeonArrowPainter extends CustomPainter {
   final bool isActive;
   final bool isRight;
   final bool filled;
-  _NeonArrowPainter({required this.isActive, required this.isRight, this.filled = true});
+  _NeonArrowPainter({
+    required this.isActive,
+    required this.isRight,
+    this.filled = true,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -263,8 +271,12 @@ class _NeonArrowPainter extends CustomPainter {
     final double gapToNeck = neckX - tailRight;
     final double overlapExtra = gapToNeck > 0 ? (gapToNeck + 1.0) : baseOverlap;
     final double tailRectOverlapWidth = tailWidth + overlapExtra;
-    final Rect tailRectOverlap =
-        Rect.fromLTWH(tailRect.left, tailRect.top, tailRectOverlapWidth, tailRect.height);
+    final Rect tailRectOverlap = Rect.fromLTWH(
+      tailRect.left,
+      tailRect.top,
+      tailRectOverlapWidth,
+      tailRect.height,
+    );
 
     final RRect tailRRectOverlap = RRect.fromRectAndCorners(
       tailRectOverlap,
@@ -286,12 +298,17 @@ class _NeonArrowPainter extends CustomPainter {
     final Offset pLeftBottom = Offset(neckX, headBottom);
 
     final double desiredCornerRadius = bh * 0.06;
-    final Path headRounded = _roundedPolygonPath(
-      [pLeftTop, pTip, pLeftBottom],
-      desiredCornerRadius,
-    );
+    final Path headRounded = _roundedPolygonPath([
+      pLeftTop,
+      pTip,
+      pLeftBottom,
+    ], desiredCornerRadius);
 
-    final Path arrow = Path.combine(PathOperation.union, tailOverlapPath, headRounded);
+    final Path arrow = Path.combine(
+      PathOperation.union,
+      tailOverlapPath,
+      headRounded,
+    );
 
     // Outer glow when active
     if (isActive) {
@@ -316,7 +333,7 @@ class _NeonArrowPainter extends CustomPainter {
         ..color = isActive ? arrowFillColor : arrowFillColor.withOpacity(0.3);
       canvas.drawPath(arrow, fillPaint);
     }
-    
+
     canvas.drawPath(arrow, singleBorder);
 
     if (!isRight) {
@@ -329,7 +346,8 @@ class _NeonArrowPainter extends CustomPainter {
   Path _roundedPolygonPath(List<Offset> pts, double radius) {
     final int n = pts.length;
     if (n == 0) return Path();
-    if (n == 1) return Path()..addOval(Rect.fromCircle(center: pts[0], radius: radius));
+    if (n == 1)
+      return Path()..addOval(Rect.fromCircle(center: pts[0], radius: radius));
     if (n == 2) {
       return Path()
         ..moveTo(pts[0].dx, pts[0].dy)
@@ -379,9 +397,9 @@ class _NeonArrowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _NeonArrowPainter oldDelegate) {
-    return oldDelegate.isActive != isActive || 
-           oldDelegate.isRight != isRight || 
-           oldDelegate.filled != filled;
+    return oldDelegate.isActive != isActive ||
+        oldDelegate.isRight != isRight ||
+        oldDelegate.filled != filled;
   }
 }
 
@@ -390,9 +408,7 @@ class _SubsurfaceGlow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _SubsurfaceGlowPainter(),
-    );
+    return CustomPaint(painter: _SubsurfaceGlowPainter());
   }
 }
 
@@ -488,7 +504,9 @@ class BeamIndicator extends StatelessWidget {
         color: isHigh ? const Color(0x332196F3) : Colors.white12,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isHigh ? Colors.lightBlueAccent.withOpacity(0.7) : Colors.white24,
+          color: isHigh
+              ? Colors.lightBlueAccent.withOpacity(0.7)
+              : Colors.white24,
           width: 1,
         ),
       ),
@@ -720,10 +738,7 @@ class _ControlsState extends State<Controls> {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          vertical: 8,
-          horizontal: 12,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -756,14 +771,18 @@ class _ControlsState extends State<Controls> {
           children: [
             Icon(
               icon,
-              color: active ? (activeColor ?? Colors.yellow) : Colors.white.withOpacity(0.7),
+              color: active
+                  ? (activeColor ?? Colors.yellow)
+                  : Colors.white.withOpacity(0.7),
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: GoogleFonts.spaceGrotesk(
-                color: active ? (activeColor ?? Colors.yellow) : Colors.white.withOpacity(0.85),
+                color: active
+                    ? (activeColor ?? Colors.yellow)
+                    : Colors.white.withOpacity(0.85),
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -857,7 +876,6 @@ class _ControlsState extends State<Controls> {
     );
   }
 }
-
 
 class BatteryWidget extends StatefulWidget {
   /// optional initial percent (default 87)
