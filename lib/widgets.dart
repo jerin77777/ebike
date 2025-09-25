@@ -142,21 +142,74 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
   }
 }
 
-class _NeonArrow extends StatelessWidget {
+class _NeonArrow extends StatefulWidget {
   final bool isActive;
   final bool isRight; // false => left
   const _NeonArrow({required this.isActive, required this.isRight});
+
+  @override
+  State<_NeonArrow> createState() => _NeonArrowState();
+}
+
+class _NeonArrowState extends State<_NeonArrow> with SingleTickerProviderStateMixin {
+  late AnimationController _blinkController;
+  late Animation<double> _blinkAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _blinkAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_blinkController);
+    
+    if (widget.isActive) {
+      _blinkController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_NeonArrow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive) {
+      if (widget.isActive) {
+        _blinkController.repeat(reverse: true);
+      } else {
+        _blinkController.stop();
+        _blinkController.reset();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _blinkController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     // Size tuned to roughly match previous icon size
     const double width = 28;
     const double height = 20;
-    Widget arrow = CustomPaint(
-      size: const Size(width, height),
-      painter: _NeonArrowPainter(isActive: isActive, isRight: isRight),
+    
+    return AnimatedBuilder(
+      animation: _blinkAnimation,
+      builder: (context, child) {
+        // Toggle between filled and outline based on animation value
+        final bool filled = widget.isActive && _blinkAnimation.value > 0.5;
+        
+        return CustomPaint(
+          size: const Size(width, height),
+          painter: _NeonArrowPainter(
+            isActive: widget.isActive, 
+            isRight: widget.isRight,
+            filled: filled,
+          ),
+        );
+      },
     );
-    return arrow;
   }
 }
 
@@ -165,7 +218,8 @@ enum ArrowDirection { left, right }
 class _NeonArrowPainter extends CustomPainter {
   final bool isActive;
   final bool isRight;
-  _NeonArrowPainter({required this.isActive, required this.isRight});
+  final bool filled;
+  _NeonArrowPainter({required this.isActive, required this.isRight, this.filled = true});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -247,11 +301,6 @@ class _NeonArrowPainter extends CustomPainter {
       canvas.drawPath(arrow, glow);
     }
 
-    final Paint fillPaint = Paint()
-      ..isAntiAlias = true
-      ..style = PaintingStyle.fill
-      ..color = isActive ? arrowFillColor : arrowFillColor.withOpacity(0.3);
-
     final Paint singleBorder = Paint()
       ..isAntiAlias = true
       ..style = PaintingStyle.stroke
@@ -260,7 +309,14 @@ class _NeonArrowPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..color = isActive ? borderColor : Colors.white30;
 
-    canvas.drawPath(arrow, fillPaint);
+    if (filled) {
+      final Paint fillPaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.fill
+        ..color = isActive ? arrowFillColor : arrowFillColor.withOpacity(0.3);
+      canvas.drawPath(arrow, fillPaint);
+    }
+    
     canvas.drawPath(arrow, singleBorder);
 
     if (!isRight) {
@@ -323,7 +379,9 @@ class _NeonArrowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _NeonArrowPainter oldDelegate) {
-    return oldDelegate.isActive != isActive || oldDelegate.isRight != isRight;
+    return oldDelegate.isActive != isActive || 
+           oldDelegate.isRight != isRight || 
+           oldDelegate.filled != filled;
   }
 }
 
