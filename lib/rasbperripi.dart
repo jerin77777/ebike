@@ -33,45 +33,54 @@ Future<void> listen() async {
   const int indicatorRightPin = 22; // physical pin -> BCM25
   const int reversePin = 32; // physical pin -> BCM12
 
-  const double radiusInches = 13.5; // tire radius in inches (same as Arduino sketch)
-  const int minMs = 100; // ignore pulses faster than this (debounce / implausible)
+  const double radiusInches = 18; // tire radius in inches (same as Arduino sketch)
   const int timeoutMs = 2000; // if no pulse within this -> speed = 0
   const Duration printInterval = Duration(seconds: 1);
+
+  // For two magnets on the wheel:
+  const int pulsesPerRotation = 2;
+
+  // debounce: ignore multiple falling edges inside this window (ms).
+  // tune this for your hardware; 30-50ms works for most reed switches.
+  const int debounceMs = 40;
   // ----------------------
 
-  final double circumferenceInches =
-      2.0 * 3.141592653589793 * radiusInches;
+  final double circumferenceInches = 2.0 * 3.141592653589793 * radiusInches;
   const double inchesPerMile = 5280.0 * 12.0; // 63360
+
+  // monotonic stopwatch for timing (reliable vs. system clock changes)
+  final sw = Stopwatch()..start();
 
   // initialize native gpio implementation for Raspberry Pi
   final gpio = await initialize_RpiGpio(); // returns an implementation of Gpio
   // optional: change polling frequency for input streams (default ~10ms)
   gpio.pollingFrequency = Duration(milliseconds: 5);
 
-  // --- Reed input (unchanged logic, using your original variable names where possible) ---
+  // --- Reed input ---
   final reedInput = gpio.input(reedPhysicalPin, Pull.up);
 
   bool? lastRawValue; // null until first sampled value
-  int? lastAcceptedMs; // epoch millis of last accepted (debounced) pulse
-  int? lastIntervalMs; // ms between last two accepted pulses
-  int lastSeenMs = DateTime.now().millisecondsSinceEpoch;
+  int? lastAcceptedPulseMs; // monotonic ms of last accepted pulse
+  int? lastIntervalMs; // ms between last two accepted pulses (time between pulses)
+  int lastSeenMs = sw.elapsedMilliseconds;
 
   final reedSub = reedInput.values.listen((bool rawValue) {
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final nowMs = sw.elapsedMilliseconds;
 
     // With pull-up: idle = HIGH (true). Reed CLOSED => pin pulled to GND => LOW (false).
-    // We want to trigger on the falling edge: true -> false.
+    // Trigger on falling edge: true -> false.
     if (lastRawValue == true && rawValue == false) {
-      // candidate pulse
-      if (lastAcceptedMs == null) {
-        // first pulse: accept but we don't have an interval yet
-        lastAcceptedMs = nowMs;
+      // candidate pulse (falling edge)
+      if (lastAcceptedPulseMs == null) {
+        // first accepted pulse
+        lastAcceptedPulseMs = nowMs;
       } else {
-        final dt = nowMs - lastAcceptedMs!;
-        if (dt >= minMs) {
+        final dt = nowMs - lastAcceptedPulseMs!;
+        // accept only if outside debounce window
+        if (dt >= debounceMs) {
           lastIntervalMs = dt;
-          lastAcceptedMs = nowMs;
-        } // else: ignore as bounce / too fast
+          lastAcceptedPulseMs = nowMs;
+        } // else: ignore as bounce / duplicate
       }
       lastSeenMs = nowMs;
     } else if (rawValue == true) {
@@ -82,7 +91,7 @@ Future<void> listen() async {
     lastRawValue = rawValue;
   });
 
-  // --- Additional switch inputs ---
+  // --- Additional switch inputs (unchanged) ---
   final speed1Input = gpio.input(speedMode1Pin, Pull.up);
   final speed2Input = gpio.input(speedMode2Pin, Pull.up);
   final lowBeamInput = gpio.input(lowBeamPin, Pull.up);
@@ -124,7 +133,6 @@ Future<void> listen() async {
     } else if (indRightPressed && !indLeftPressed) {
       indicatorState = "right";
     } else {
-      // when neither or both are pressed we return "none" per your spec (adjustable)
       indicatorState = "none";
     }
 
@@ -140,7 +148,6 @@ Future<void> listen() async {
     } else if (lowPressed) {
       lightState = "low_beam";
     } else {
-      // default to low_beam when neither pressed (common in vehicle behavior).
       lightState = "low_beam";
     }
 
@@ -203,15 +210,16 @@ Future<void> listen() async {
     }),
   ];
 
-  // periodic printer for speed (unchanged logic), but keep it as your single numeric stream publisher
+  // periodic printer for speed — keep it as your single numeric stream publisher
   final timer = Timer.periodic(printInterval, (_) {
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final nowMs = sw.elapsedMilliseconds;
 
     double mph = 0.0;
     if (lastIntervalMs != null && (nowMs - lastSeenMs) <= timeoutMs) {
+      // lastIntervalMs = ms between adjacent pulses
+      final msPerRotation = lastIntervalMs! * pulsesPerRotation;
       // mph = circumference_in_inches * 3600000 / (inches_per_mile * ms_per_rotation)
-      mph =
-          (circumferenceInches * 3600000.0) / (inchesPerMile * lastIntervalMs!);
+      mph = (circumferenceInches * 3600000.0) / (inchesPerMile * msPerRotation);
     } else {
       mph = 0.0;
     }
