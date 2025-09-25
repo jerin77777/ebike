@@ -24,152 +24,74 @@ StreamController<bool> reverseController =
 Future<void> listen() async {
   // --- Configuration ---
   const int reedPhysicalPin = 11; // physical header pin for BCM17 (your reed)
-  const int speedMode1Pin = 12;
-  const int speedMode2Pin = 13;
-  const int lowBeamPin = 15;
-  const int highBeamPin = 16;
-  const int indicatorLeftPin = 18;
-  const int indicatorRightPin = 22;
-  const int reversePin = 32;
+  // Additional switch pins (physical header numbering) — matches prior suggestion:
+  const int speedMode1Pin = 12; // physical pin -> BCM18
+  const int speedMode2Pin = 13; // physical pin -> BCM27
+  const int lowBeamPin = 15; // physical pin -> BCM22
+  const int highBeamPin = 16; // physical pin -> BCM23
+  const int indicatorLeftPin = 18; // physical pin -> BCM24
+  const int indicatorRightPin = 22; // physical pin -> BCM25
+  const int reversePin = 32; // physical pin -> BCM12
 
-  const double radiusInches = 18;
-  const int timeoutMs = 2000; // time to zero when no pulses
-  final Duration publishInterval = Duration(milliseconds: 200); // periodic fallback
+  const double radiusInches = 18; // tire radius in inches (same as Arduino sketch)
+  const int timeoutMs = 2000; // if no pulse within this -> speed = 0
+  const Duration printInterval = Duration(seconds: 1);
 
+  // For two magnets on the wheel:
   const int pulsesPerRotation = 2;
 
-  // debounce (ms) -- keep reasonably high to avoid bounces being accepted.
-  const int debounceMs = 30;
-  // interval buffer & outlier settings
-  const int intervalBufferSize = 5; // small buffer of recent adjacent-pulse intervals
-  const double outlierLowerFactor = 0.5; // lower bound relative to median
-  const double outlierUpperFactor = 2.5; // upper bound relative to median
-  const double maxSpeedMph = 120.0; // clamp impossible speeds above this
-  const double emaAlpha = 0.35; // smoothing for published MPH (0..1) - higher = less smoothing
+  // debounce: ignore multiple falling edges inside this window (ms).
+  // tune this for your hardware; 30-50ms works for most reed switches.
+  const int debounceMs = 40;
   // ----------------------
 
   final double circumferenceInches = 2.0 * 3.141592653589793 * radiusInches;
   const double inchesPerMile = 5280.0 * 12.0; // 63360
 
-  // compute a minimum plausible interval (microseconds) for the configured maxSpeed
-  // lastIntervalUs corresponds to time between adjacent pulses (not full rotation)
-  final double minIntervalUsForMaxSpeed = ((circumferenceInches * 3600000.0) /
-          (inchesPerMile * maxSpeedMph)) *
-      1000.0 /
-      pulsesPerRotation;
-
+  // monotonic stopwatch for timing (reliable vs. system clock changes)
   final sw = Stopwatch()..start();
 
-  final gpio = await initialize_RpiGpio();
-  gpio.pollingFrequency = Duration(milliseconds: 3);
+  // initialize native gpio implementation for Raspberry Pi
+  final gpio = await initialize_RpiGpio(); // returns an implementation of Gpio
+  // optional: change polling frequency for input streams (default ~10ms)
+  gpio.pollingFrequency = Duration(milliseconds: 5);
 
+  // --- Reed input ---
   final reedInput = gpio.input(reedPhysicalPin, Pull.up);
 
-  bool? lastRawValue;
-  int? lastAcceptedPulseUs; // microseconds
-  int lastSeenUs = sw.elapsedMicroseconds;
-
-  // small circular buffer of recent adjacent-pulse intervals (microseconds)
-  final List<int> intervalBuf = <int>[];
-  double emaMph = 0.0; // EMA for published mph (starts at 0)
-
-  // helper: compute median of list<int>
-  int _median(List<int> xs) {
-    if (xs.isEmpty) return 0;
-    final copy = List<int>.from(xs)..sort();
-    final mid = copy.length ~/ 2;
-    if (copy.length.isOdd) return copy[mid];
-    return ((copy[mid - 1] + copy[mid]) ~/ 2);
-  }
-
-  // compute average (double) of intervalBuf
-  double _avgIntervalUs() {
-    if (intervalBuf.isEmpty) return 0.0;
-    final sum = intervalBuf.fold<int>(0, (p, e) => p + e);
-    return sum / intervalBuf.length;
-  }
-
-  // calculate mph from an average interval (microseconds between adjacent pulses)
-  double _mphFromAvgIntervalUs(double avgIntervalUs) {
-    if (avgIntervalUs <= 0.0) return 0.0;
-    final msPerRotation = (avgIntervalUs * pulsesPerRotation) / 1000.0;
-    if (msPerRotation <= 0.0) return 0.0;
-    return (circumferenceInches * 3600000.0) / (inchesPerMile * msPerRotation);
-  }
-
-  // Publish a new mph value (applies EMA smoothing)
-  void _publishMphImmediate(double rawMph) {
-    // clamp to [0, maxSpeedMph*1.2] for safety (allow a little headroom)
-    final double clamped = rawMph.clamp(0.0, maxSpeedMph * 1.2);
-    // initialize EMA to first measurement if currently zero
-    if (emaMph == 0.0) {
-      emaMph = clamped;
-    } else {
-      emaMph = emaAlpha * clamped + (1.0 - emaAlpha) * emaMph;
-    }
-    speedController.add(emaMph);
-  }
+  bool? lastRawValue; // null until first sampled value
+  int? lastAcceptedPulseMs; // monotonic ms of last accepted pulse
+  int? lastIntervalMs; // ms between last two accepted pulses (time between pulses)
+  int lastSeenMs = sw.elapsedMilliseconds;
 
   final reedSub = reedInput.values.listen((bool rawValue) {
-    final nowUs = sw.elapsedMicroseconds;
+    final nowMs = sw.elapsedMilliseconds;
 
-    // falling edge detection (idle HIGH, closed -> LOW)
+    // With pull-up: idle = HIGH (true). Reed CLOSED => pin pulled to GND => LOW (false).
+    // Trigger on falling edge: true -> false.
     if (lastRawValue == true && rawValue == false) {
-      if (lastAcceptedPulseUs == null) {
-        // first accepted pulse (can't form an interval yet)
-        lastAcceptedPulseUs = nowUs;
+      // candidate pulse (falling edge)
+      if (lastAcceptedPulseMs == null) {
+        // first accepted pulse
+        lastAcceptedPulseMs = nowMs;
       } else {
-        final dtUs = nowUs - lastAcceptedPulseUs!;
-        final debounceUs = debounceMs * 1000;
-
-        // ignore very close edges (debounce)
-        if (dtUs >= debounceUs) {
-          // reject impossible-too-short intervals (likely bounce / glitch)
-          if (dtUs < minIntervalUsForMaxSpeed) {
-            // ignore this dt as impossible given maxSpeed; do NOT update lastAcceptedPulseUs
-            // (do not push to buffer) — this prevents tiny dt spikes
-          } else {
-            // outlier filtering relative to current buffer median (if we have history)
-            if (intervalBuf.isNotEmpty) {
-              final med = _median(intervalBuf);
-              final lower = (med * outlierLowerFactor).toInt();
-              final upper = (med * outlierUpperFactor).toInt();
-
-              if (dtUs < lower || dtUs > upper) {
-                // treat as outlier: push median instead of the extreme dt to keep the buffer stable
-                intervalBuf.add(med);
-              } else {
-                // normal: push new dt
-                intervalBuf.add(dtUs);
-              }
-            } else {
-              // buffer empty: accept first dt
-              intervalBuf.add(dtUs);
-            }
-
-            // keep buffer size bounded
-            if (intervalBuf.length > intervalBufferSize) {
-              intervalBuf.removeAt(0);
-            }
-
-            lastAcceptedPulseUs = nowUs;
-
-            // compute speed from buffered average and publish immediately (low latency)
-            final avgUs = _avgIntervalUs();
-            final mph = _mphFromAvgIntervalUs(avgUs);
-            _publishMphImmediate(mph);
-          }
-        }
+        final dt = nowMs - lastAcceptedPulseMs!;
+        // accept only if outside debounce window
+        if (dt >= debounceMs) {
+          lastIntervalMs = dt;
+          lastAcceptedPulseMs = nowMs;
+        } // else: ignore as bounce / duplicate
       }
-      lastSeenUs = nowUs;
+      lastSeenMs = nowMs;
     } else if (rawValue == true) {
-      lastSeenUs = nowUs;
+      // when line goes back to HIGH we still update lastSeen
+      lastSeenMs = nowMs;
     }
 
     lastRawValue = rawValue;
   });
 
-  // --- other inputs (unchanged) ---
+  // --- Additional switch inputs (unchanged) ---
   final speed1Input = gpio.input(speedMode1Pin, Pull.up);
   final speed2Input = gpio.input(speedMode2Pin, Pull.up);
   final lowBeamInput = gpio.input(lowBeamPin, Pull.up);
@@ -178,6 +100,7 @@ Future<void> listen() async {
   final indRightInput = gpio.input(indicatorRightPin, Pull.up);
   final reverseInput = gpio.input(reversePin, Pull.up);
 
+  // hold last known raw values (true = HIGH idle, false = pressed to GND)
   bool lastSpeed1Raw = true;
   bool lastSpeed2Raw = true;
   bool lastLowRaw = true;
@@ -186,12 +109,15 @@ Future<void> listen() async {
   bool lastIndRightRaw = true;
   bool lastReverseRaw = true;
 
+  // hold last emitted derived states so we only push changes
   String lastIndicatorState = "none";
   String lastLightState = "low_beam";
   int lastSpeedMode = 3;
   bool lastReverseState = false;
 
+  // helper: compute derived states and emit if changed
   void recomputeAndEmit() {
+    // pressed = active-low => pressed when raw == false
     final bool speed1Pressed = lastSpeed1Raw == false;
     final bool speed2Pressed = lastSpeed2Raw == false;
     final bool lowPressed = lastLowRaw == false;
@@ -200,6 +126,7 @@ Future<void> listen() async {
     final bool indRightPressed = lastIndRightRaw == false;
     final bool reversePressed = lastReverseRaw == false;
 
+    // indicator: none / left / right
     String indicatorState;
     if (indLeftPressed && !indRightPressed) {
       indicatorState = "left";
@@ -208,22 +135,28 @@ Future<void> listen() async {
     } else {
       indicatorState = "none";
     }
+
     if (indicatorState != lastIndicatorState) {
       lastIndicatorState = indicatorState;
       indicatorController.add(indicatorState);
     }
 
+    // light: high_beam / low_beam (default to low_beam when neither pressed)
     String lightState;
     if (highPressed) {
       lightState = "high_beam";
+    } else if (lowPressed) {
+      lightState = "low_beam";
     } else {
       lightState = "low_beam";
     }
+
     if (lightState != lastLightState) {
       lastLightState = lightState;
       lightController.add(lightState);
     }
 
+    // speed mode: 1, 2, otherwise 3
     int speedMode;
     if (speed1Pressed) {
       speedMode = 1;
@@ -232,17 +165,20 @@ Future<void> listen() async {
     } else {
       speedMode = 3;
     }
+
     if (speedMode != lastSpeedMode) {
       lastSpeedMode = speedMode;
       speedModeController.add(speedMode);
     }
 
+    // reverse: emit true/false on change
     if (reversePressed != lastReverseState) {
       lastReverseState = reversePressed;
       reverseController.add(reversePressed);
     }
   }
 
+  // subscribe to each input .values stream and update lastRaw values, then recompute
   final subs = <StreamSubscription<bool>>[
     speed1Input.values.listen((v) {
       lastSpeed1Raw = v;
@@ -274,35 +210,36 @@ Future<void> listen() async {
     }),
   ];
 
-  // periodic publisher to emit zero on timeout and keep UI updated if no pulses
-  final timer = Timer.periodic(publishInterval, (_) {
-    final nowUs = sw.elapsedMicroseconds;
+  // periodic printer for speed — keep it as your single numeric stream publisher
+  final timer = Timer.periodic(printInterval, (_) {
+    final nowMs = sw.elapsedMilliseconds;
 
-    // timeout -> zero
-    if ((nowUs - lastSeenUs) > (timeoutMs * 1000)) {
-      // clear buffer so next pulses start fresh
-      intervalBuf.clear();
-      emaMph = 0.0;
-      speedController.add(0.0);
-      return;
+    double mph = 0.0;
+    if (lastIntervalMs != null && (nowMs - lastSeenMs) <= timeoutMs) {
+      // lastIntervalMs = ms between adjacent pulses
+      final msPerRotation = lastIntervalMs! * pulsesPerRotation;
+      // mph = circumference_in_inches * 3600000 / (inches_per_mile * ms_per_rotation)
+      mph = (circumferenceInches * 3600000.0) / (inchesPerMile * msPerRotation);
+    } else {
+      mph = 0.0;
     }
 
-    // if we have buffered intervals, periodically republish smoothed speed to keep UI alive
-    if (intervalBuf.isNotEmpty) {
-      final avgUs = _avgIntervalUs();
-      final mph = _mphFromAvgIntervalUs(avgUs);
-      _publishMphImmediate(mph);
-    }
+    // publish speed (matching your Arduino Serial.println single-value style)
+    speedController.add(mph);
   });
 
+  // cleanup on exit
   void cleanExit([int exitCode = 0]) async {
     timer.cancel();
     await reedSub.cancel();
     for (final s in subs) {
       await s.cancel();
     }
+
+    // dispose gpio and close controllers
     await gpio.dispose();
 
+    // close controllers (if you want them to be closed on exit)
     await indicatorController.close();
     await lightController.close();
     await speedModeController.close();
@@ -312,10 +249,10 @@ Future<void> listen() async {
     exit(exitCode);
   }
 
+  // SIGINT / SIGTERM handling
   ProcessSignal.sigint.watch().listen((_) => cleanExit(0));
   ProcessSignal.sigterm.watch().listen((_) => cleanExit(0));
 
+  // keep program alive
   await Completer<void>().future;
 }
-
-
