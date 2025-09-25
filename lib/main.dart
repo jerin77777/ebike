@@ -272,13 +272,12 @@ class _InterfaceState extends State<Interface> {
   // Selected tab state
   String _selectedTab = 'SPORT';
 
-  double _distanceKm = 12.4;
 
   // Show stream/fullscreen image
   bool _showStream = false;
 
   // Turn indicator state
-  IndicatorDirection _indicatorDirection = IndicatorDirection.right;
+  IndicatorDirection _indicatorDirection = IndicatorDirection.none;
   LightBeam _beam = LightBeam.low;
 
   @override
@@ -396,15 +395,16 @@ class _InterfaceState extends State<Interface> {
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
       }
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        setState(() => _indicatorDirection = IndicatorDirection.left);
-      }
-      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        setState(() => _indicatorDirection = IndicatorDirection.right);
-      }
-      if (event.logicalKey == LogicalKeyboardKey.space) {
-        setState(() => _indicatorDirection = IndicatorDirection.none);
-      }
+      // Removed keyboard controls for indicators - now controlled by Raspberry Pi
+      // if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      //   setState(() => _indicatorDirection = IndicatorDirection.left);
+      // }
+      // if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      //   setState(() => _indicatorDirection = IndicatorDirection.right);
+      // }
+      // if (event.logicalKey == LogicalKeyboardKey.space) {
+      //   setState(() => _indicatorDirection = IndicatorDirection.none);
+      // }
     }
   }
 

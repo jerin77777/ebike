@@ -104,28 +104,34 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                 Positioned(
                   right: 12,
                   bottom: 8,
-                  child: Row(
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Beam icon just above arrows
+                      // Beam icon above arrows - made bigger
                       Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
+                        padding: const EdgeInsets.only(bottom: 8.0),
                         child: Icon(
                           Icons.light_mode,
-                          size: 18,
+                          size: 32,
                           color: widget.beam == LightBeam.high
                               ? Colors.lightBlueAccent
                               : Colors.white38,
                         ),
                       ),
-                      _NeonArrow(
-                        isActive: widget.direction == IndicatorDirection.left,
-                        isRight: false,
-                      ),
-                      const SizedBox(width: 6),
-                      _NeonArrow(
-                        isActive: widget.direction == IndicatorDirection.right,
-                        isRight: true,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _NeonArrow(
+                            isActive: widget.direction == IndicatorDirection.left,
+                            isRight: false,
+                          ),
+                          const SizedBox(width: 6),
+                          _NeonArrow(
+                            isActive: widget.direction == IndicatorDirection.right,
+                            isRight: true,
+                          ),
+                        ],
                       ),
                     ],
                   ),
