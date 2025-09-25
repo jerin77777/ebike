@@ -193,7 +193,7 @@ class _NeonArrowState extends State<_NeonArrow>
   Widget build(BuildContext context) {
     // Size tuned to roughly match previous icon size
     const double width = 28;
-    const double height = 20;
+    const double height = 24;
 
     return AnimatedBuilder(
       animation: _blinkAnimation,
