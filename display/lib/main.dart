@@ -423,10 +423,8 @@ class _InterfaceState extends State<Interface> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: SafeArea(
-          child: Transform.rotate(
-            angle: pi, // 180 degrees rotation
-            child: Stack(
-              children: [
+          child: Stack(
+            children: [
                 // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
                 if (_showStream)
                   const Positioned.fill(child: StreamViewWrapper())
@@ -478,7 +476,6 @@ class _InterfaceState extends State<Interface> {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -523,10 +520,8 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: pi, // 180 degrees rotation to match main interface
-      child: Stack(
-        children: [
+    return Stack(
+      children: [
           Positioned.fill(
             child: _latestBytes != null
                 ? Image.memory(
@@ -577,7 +572,6 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 }

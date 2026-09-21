@@ -38,7 +38,9 @@ dependencies:
   rive: ^0.13.20
   rpi_gpio: ^0.10.0
   window_manager: ^0.3.5
+  shelf: ^1.4.1
   shelf_router: ^1.1.4
+  path: ^1.9.0
 
 
 dev_dependencies:
