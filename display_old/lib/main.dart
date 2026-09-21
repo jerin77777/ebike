@@ -445,15 +445,6 @@ class _InterfaceState extends State<Interface> {
                     onTabChanged: (tab) => setState(() => _selectedTab = tab),
                   ),
                   const Positioned(top: 8, left: 8, child: TimeWidget()),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: BatteryWidget(
-                      initialPercent: 87,
-                      updateInterval: const Duration(seconds: 5),
-                      onChanged: (p) {},
-                    ),
-                  ),
                   // Removed separate BeamIndicator; now shown in TurnIndicatorBar
                 ],
                 // Indicator bar overlays at the very bottom regardless of mode

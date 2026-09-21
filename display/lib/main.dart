@@ -444,19 +444,7 @@ class _InterfaceState extends State<Interface> {
                   Positioned(
                     top: 10,
                     right: 12,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const SmokeSensorWidget(),
-                        const SizedBox(width: 14),
-                        BatteryWidget(
-                          initialPercent: 87,
-                          updateInterval: const Duration(seconds: 5),
-                          onChanged: (p) {},
-                        ),
-                      ],
-                    ),
+                    child: const SmokeSensorWidget(),
                   ),
                   // Removed separate BeamIndicator; now shown in TurnIndicatorBar
                 ],

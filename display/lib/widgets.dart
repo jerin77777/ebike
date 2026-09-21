@@ -228,10 +228,7 @@ class _NeonArrowState extends State<_NeonArrow>
               width: size,
               height: size,
               fit: BoxFit.contain,
-              colorFilter: ColorFilter.mode(
-                arrowColor,
-                BlendMode.srcIn,
-              ),
+              colorFilter: ColorFilter.mode(arrowColor, BlendMode.srcIn),
             ),
           ),
         );
@@ -239,7 +236,6 @@ class _NeonArrowState extends State<_NeonArrow>
     );
   }
 }
-
 
 class _SubsurfaceGlow extends StatelessWidget {
   const _SubsurfaceGlow();
@@ -909,7 +905,8 @@ class _TimeWidgetState extends State<TimeWidget> {
 
 class TemperatureWidget extends StatefulWidget {
   final double initialTemp;
-  const TemperatureWidget({Key? key, this.initialTemp = 28.0}) : super(key: key);
+  const TemperatureWidget({Key? key, this.initialTemp = 37.0})
+    : super(key: key);
 
   @override
   State<TemperatureWidget> createState() => _TemperatureWidgetState();
@@ -923,12 +920,18 @@ class _TemperatureWidgetState extends State<TemperatureWidget> {
   @override
   void initState() {
     super.initState();
-    _temp = widget.initialTemp;
-    // Gently simulate realistic normal temperature fluctuation between 27.5°C and 28.8°C
+    _temp = widget.initialTemp.clamp(35.0, 40.0);
+    // Gently simulate realistic slight temperature fluctuation (small deflection) within 35°C to 40°C
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted) {
         setState(() {
-          _temp = 28.0 + (_rnd.nextDouble() * 1.2 - 0.6);
+          final double delta = (_rnd.nextDouble() * 0.4 - 0.2); // +/- 0.2°C subtle drift
+          double next = _temp + delta;
+          // Keep drift close to the starting temperature (within +/- 1.0°C) without high deflection
+          if ((next - widget.initialTemp).abs() > 1.0) {
+            next = _temp - delta;
+          }
+          _temp = next.clamp(35.0, 40.0);
         });
       }
     });
@@ -945,11 +948,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
-          Icons.thermostat_rounded,
-          size: 18,
-          color: Colors.white70,
-        ),
+        const Icon(Icons.thermostat_rounded, size: 18, color: Colors.white70),
         const SizedBox(width: 3),
         Text(
           '${_temp.toStringAsFixed(1)}°C',
@@ -995,7 +994,9 @@ class _SmokeSensorWidgetState extends State<SmokeSensorWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _smokeDetected ? Icons.warning_amber_rounded : Icons.smoke_free_rounded,
+            _smokeDetected
+                ? Icons.warning_amber_rounded
+                : Icons.smoke_free_rounded,
             size: 15,
             color: _smokeDetected ? Colors.redAccent : const Color(0xFF14E01F),
           ),
@@ -1003,7 +1004,9 @@ class _SmokeSensorWidgetState extends State<SmokeSensorWidget> {
           Text(
             _smokeDetected ? 'SMOKE' : 'NO SMOKE',
             style: GoogleFonts.spaceGrotesk(
-              color: _smokeDetected ? Colors.redAccent : const Color(0xFF14E01F),
+              color: _smokeDetected
+                  ? Colors.redAccent
+                  : const Color(0xFF14E01F),
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.4,

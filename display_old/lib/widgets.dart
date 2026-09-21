@@ -109,8 +109,8 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                     widget.beam == LightBeam.high
                         ? 'assets/high_beam.svg'
                         : 'assets/low_beam.svg',
-                    width: 42,
-                    height: 42,
+                    width: 48,
+                    height: 48,
                     fit: BoxFit.contain,
                     colorFilter: ColorFilter.mode(
                       widget.beam == LightBeam.high
@@ -909,7 +909,7 @@ class _TimeWidgetState extends State<TimeWidget> {
 
 class TemperatureWidget extends StatefulWidget {
   final double initialTemp;
-  const TemperatureWidget({Key? key, this.initialTemp = 28.0}) : super(key: key);
+  const TemperatureWidget({Key? key, this.initialTemp = 37.0}) : super(key: key);
 
   @override
   State<TemperatureWidget> createState() => _TemperatureWidgetState();
@@ -923,12 +923,17 @@ class _TemperatureWidgetState extends State<TemperatureWidget> {
   @override
   void initState() {
     super.initState();
-    _temp = widget.initialTemp;
-    // Gently simulate realistic normal temperature fluctuation between 27.5°C and 28.8°C
+    _temp = widget.initialTemp.clamp(35.0, 40.0);
+    // Gently simulate realistic slight temperature fluctuation (small deflection) within 35°C to 40°C
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted) {
         setState(() {
-          _temp = 28.0 + (_rnd.nextDouble() * 1.2 - 0.6);
+          final double delta = (_rnd.nextDouble() * 0.4 - 0.2);
+          double next = _temp + delta;
+          if ((next - widget.initialTemp).abs() > 1.0) {
+            next = _temp - delta;
+          }
+          _temp = next.clamp(35.0, 40.0);
         });
       }
     });
