@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'widgets.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +75,8 @@ void main() async {
   listen();
 
   turnOnBluetooth();
+
+  HostState.checkInitialStatus();
 
   runApp(const MyApp());
 }
@@ -342,6 +345,7 @@ class _InterfaceState extends State<Interface> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
 
     // If you have a speedController stream in globals, attach to it safely
     try {
@@ -445,17 +449,33 @@ class _InterfaceState extends State<Interface> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     speedSub?.cancel();
     speedModeSub?.cancel();
     reverseSub?.cancel();
     _stateMachineController?.dispose();
+    focusNode.dispose();
     super.dispose();
   }
 
-  void _handleKeyEvent(KeyEvent event) {
-    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+  bool _handleHardwareKey(KeyEvent event) {
+    if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
+      } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
+        HostState.toggle();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.keyQ) {
+        exit(0);
+      } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
+        HostState.toggle();
       }
     }
   }
@@ -512,7 +532,14 @@ class _InterfaceState extends State<Interface> {
                   Positioned(
                     top: 10,
                     right: 12,
-                    child: const SmokeSensorWidget(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        HostIndicatorWidget(),
+                        SizedBox(width: 10),
+                        SmokeSensorWidget(),
+                      ],
+                    ),
                   ),
                   // Removed separate BeamIndicator; now shown in TurnIndicatorBar
                 ],

@@ -1018,6 +1018,138 @@ class _SmokeSensorWidgetState extends State<SmokeSensorWidget> {
   }
 }
 
+class HostIndicatorWidget extends StatefulWidget {
+  const HostIndicatorWidget({super.key});
+
+  @override
+  State<HostIndicatorWidget> createState() => _HostIndicatorWidgetState();
+}
+
+class _HostIndicatorWidgetState extends State<HostIndicatorWidget>
+    with SingleTickerProviderStateMixin {
+  bool _isActive = HostState.isActive;
+  bool _isTransitioning = HostState.isTransitioning;
+  StreamSubscription<bool>? _sub;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..repeat(reverse: true);
+
+    _sub = HostState.statusController.stream.listen((active) {
+      if (mounted) {
+        setState(() {
+          _isActive = active;
+          _isTransitioning = HostState.isTransitioning;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSwitching = _isTransitioning || HostState.isTransitioning;
+    const Color activeColor = Color(0xFF00E5FF);
+    const Color inactiveColor = Colors.white38;
+    final Color currentColor = isSwitching
+        ? const Color(0xFFFFB300)
+        : (_isActive ? activeColor : inactiveColor);
+
+    return GestureDetector(
+      onTap: () => HostState.toggle(),
+      child: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          final double opacity = isSwitching
+              ? (0.4 + (_pulseController.value * 0.6))
+              : 1.0;
+
+          return Opacity(
+            opacity: opacity,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: isSwitching
+                    ? const Color(0xFFFFB300).withValues(alpha: 0.15)
+                    : (_isActive
+                        ? activeColor.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.05)),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isSwitching
+                      ? const Color(0xFFFFB300).withValues(alpha: 0.7)
+                      : (_isActive
+                          ? activeColor.withValues(alpha: 0.7)
+                          : Colors.white.withValues(alpha: 0.15)),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4.5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isSwitching
+                          ? const Color(0xFFFFB300)
+                          : (_isActive ? activeColor : Colors.white12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'H',
+                      style: GoogleFonts.spaceGrotesk(
+                        color: isSwitching || _isActive
+                            ? Colors.black
+                            : Colors.white70,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Icon(
+                    isSwitching
+                        ? Icons.sync_rounded
+                        : (_isActive
+                            ? Icons.wifi_tethering_rounded
+                            : Icons.wifi_tethering_off_rounded),
+                    size: 14,
+                    color: currentColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isSwitching
+                        ? 'SWITCHING'
+                        : (_isActive ? 'HOST' : 'NORMAL'),
+                    style: GoogleFonts.spaceGrotesk(
+                      color: currentColor,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class BluetoothStatusWidget extends StatefulWidget {
   const BluetoothStatusWidget({Key? key}) : super(key: key);
 

@@ -11,10 +11,13 @@
 // --------------------
 // WiFi and server info
 // --------------------
-const char *ssid = "test";
-const char *password = "";
+// Raspberry Pi Host AP Mode (toggled via 'H' key on the display dashboard):
+// Connects ESP32 directly to the Pi acting as a router/host.
+const char *ssid = "EBike-ESP32-AP";     // Configured in display/hotspot_config.env
+const char *password = "ebike1234";       // Configured in display/hotspot_config.env
 
-const char* dartServerHost = "192.168.1.100"; // <-- set your PC LAN IP
+// Raspberry Pi Host AP Gateway IP is 10.42.0.1 (or set your PC LAN IP if testing locally)
+const char* dartServerHost = "10.42.0.1";
 const uint16_t dartServerWsPort = 5001;
 const char* dartServerWsPath = "/ws";
 
