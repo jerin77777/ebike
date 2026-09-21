@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:ebike/globals.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 enum IndicatorDirection { none, left, right }
@@ -111,12 +112,19 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                       // Beam icon above arrows - made bigger
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Icon(
-                          Icons.light_mode,
-                          size: 32,
-                          color: widget.beam == LightBeam.high
-                              ? Colors.lightBlueAccent
-                              : Colors.white38,
+                        child: SvgPicture.asset(
+                          widget.beam == LightBeam.high
+                              ? 'assets/high_beam.svg'
+                              : 'assets/low_beam.svg',
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.contain,
+                          colorFilter: ColorFilter.mode(
+                            widget.beam == LightBeam.high
+                                ? Colors.lightBlueAccent
+                                : Colors.white38,
+                            BlendMode.srcIn,
+                          ),
                         ),
                       ),
                       Row(
@@ -519,10 +527,15 @@ class BeamIndicator extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.light_mode,
-            size: 18,
-            color: isHigh ? Colors.lightBlueAccent : Colors.white70,
+          SvgPicture.asset(
+            isHigh ? 'assets/high_beam.svg' : 'assets/low_beam.svg',
+            width: 20,
+            height: 20,
+            fit: BoxFit.contain,
+            colorFilter: ColorFilter.mode(
+              isHigh ? Colors.lightBlueAccent : Colors.white70,
+              BlendMode.srcIn,
+            ),
           ),
           const SizedBox(width: 6),
           Text(

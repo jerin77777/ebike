@@ -330,7 +330,10 @@ class _InterfaceState extends State<Interface> {
 
   Future<void> _loadRiveFile() async {
     try {
-      final file = await File.asset('assets/speedometer.riv');
+      final file = await File.asset(
+        'assets/speedometer.riv',
+        riveFactory: Factory.rive,
+      );
       if (file != null && mounted) {
         final controller = RiveWidgetController(file);
         NumberInput? numInput;
@@ -406,7 +409,7 @@ class _InterfaceState extends State<Interface> {
                     child: _riveController != null
                         ? RiveWidget(
                             controller: _riveController!,
-                            fit: BoxFit.cover,
+                            fit: Fit.cover,
                           )
                         : const SizedBox.shrink(),
                   ),

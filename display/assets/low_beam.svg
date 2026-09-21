@@ -1,6 +1,5 @@
-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="1254" viewBox="0 0 1024 1024" enable-background="new 0 0 1024 1024" xml:space="preserve" height="1254"><metadata><?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="XMP Core 6.0.0"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmpMM:DocumentID="xmp.did:cb9f5498-bb58-4572-8043-8c369e6bfb9b" xmpMM:InstanceID="xmp.iid:cb9f5498-bb58-4572-8043-8c369e6bfb9b" dcterms:provenance="https://cai-manifests.adobe.com/manifests/urn-c2pa-9e75d30e-ad81-46ee-b62b-734eac59bf59-adobe"> </rdf:Description></rdf:RDF></x:xmpmeta>
-<?xpacket end="w"?></metadata>
-<path fill="#000000" opacity="1.000000" stroke="none" d="
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" xml:space="preserve">
+<path fill="currentColor" opacity="1.000000" stroke="none" d="
 M453.005798,297.890503 
 	C474.001312,297.822906 494.497955,297.746460 514.994690,297.689301 
 	C524.276306,297.663422 524.285339,297.680756 524.284912,306.804443 
@@ -25,7 +24,7 @@ M343.254608,388.770599
 	C463.182556,358.948730 462.111786,356.477478 456.913116,356.271606 
 	C415.699890,354.639496 377.618011,363.863525 343.254608,388.770599 
 z"></path>
-<path fill="#000000" opacity="1.000000" stroke="none" d="
+<path fill="currentColor" opacity="1.000000" stroke="none" d="
 M719.537720,451.532135 
 	C673.585938,435.500580 628.020203,419.557129 582.404663,403.757233 
 	C578.441650,402.384552 576.958252,400.276093 577.034546,396.109528 
@@ -38,7 +37,7 @@ M719.537720,451.532135
 	C792.375977,476.234680 791.828857,476.686188 786.410645,474.809052 
 	C764.232361,467.125397 742.075317,459.380646 719.537720,451.532135 
 z"></path>
-<path fill="#000000" opacity="1.000000" stroke="none" d="
+<path fill="currentColor" opacity="1.000000" stroke="none" d="
 M792.141724,722.000000 
 	C792.138611,729.663025 792.210388,736.827026 792.107971,743.988647 
 	C792.036804,748.970703 791.020752,749.708923 786.376770,748.085693 
@@ -52,7 +51,7 @@ M792.141724,722.000000
 	C790.981323,687.562744 792.294189,689.401184 792.222534,693.015625 
 	C792.034424,702.507202 792.148560,712.004822 792.141724,722.000000 
 z"></path>
-<path fill="#000000" opacity="1.000000" stroke="none" d="
+<path fill="currentColor" opacity="1.000000" stroke="none" d="
 M738.628906,594.483521 
 	C686.082947,576.174805 633.915405,557.975220 581.706116,539.896118 
 	C578.134766,538.659424 576.769653,536.840942 576.814087,533.032288 
