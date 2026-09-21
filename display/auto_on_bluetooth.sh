@@ -10,10 +10,20 @@
 
 set -e
 
-# Ensure running with sudo
+# User credentials
+USER_NAME="${EBIKE_USER:-ebike}"
+USER_PASS="${EBIKE_PASS:-123}"
+
+# Ensure running with sudo / root privileges automatically using credentials
 if [ "$EUID" -ne 0 ]; then
-    echo "[!] Requesting root privileges..."
-    exec sudo bash "$0" "$@"
+    echo "[!] Requesting root privileges for user '$USER_NAME'..."
+    if command -v sudo >/dev/null 2>&1; then
+        echo "$USER_PASS" | sudo -S bash "$0" "$@"
+        exit $?
+    else
+        echo "[ERROR] 'sudo' not found. Please run this script as root." >&2
+        exit 1
+    fi
 fi
 
 echo "=== [1/4] Configuring BlueZ to automatically power ON at boot ==="
@@ -35,6 +45,12 @@ fi
 echo "=== [2/4] Unblocking rfkill and restarting Bluetooth service ==="
 rfkill unblock bluetooth || true
 rfkill unblock all || true
+
+# Ensure user is in bluetooth group for non-root access
+if id "$USER_NAME" >/dev/null 2>&1; then
+    usermod -a -G bluetooth "$USER_NAME" || true
+    echo "[✓] User '$USER_NAME' added to 'bluetooth' group"
+fi
 
 systemctl daemon-reload || true
 systemctl enable bluetooth.service

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'widgets.dart';
 import 'package:flutter/services.dart';
@@ -21,7 +20,7 @@ import 'package:flutter/material.dart' hide Router;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ----- start local server for uploads (in-memory) -----
+  // ----- start local server for uploads (in-memory) for ESP camera -----
   const Map<String, String> corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -74,7 +73,24 @@ void main() async {
 
   listen();
 
+  turnOnBluetooth();
+
   runApp(const MyApp());
+}
+
+/// Simple Bluetooth turn-on helper
+void turnOnBluetooth() async {
+  if (!Platform.isLinux) return;
+  try {
+    final script = File('auto_on_bluetooth.sh').existsSync()
+        ? 'auto_on_bluetooth.sh'
+        : 'display/auto_on_bluetooth.sh';
+    final res = await Process.run('bash', [script]);
+    print(res.stdout);
+    if (res.exitCode != 0) print(res.stderr);
+  } catch (e) {
+    print('Bluetooth error: $e');
+  }
 }
 
 /// ---------------------------
@@ -216,7 +232,7 @@ Future<void> _startWebSocketServer({
 }
 
 /// ---------------------------
-/// Upload handler (in-memory)
+/// Upload handler (in-memory) for ESP camera
 /// Accepts raw image bytes in the POST body (Content-Type: image/jpeg|png ...)
 /// and emits the bytes on imageStreamController. Does NOT save to disk.
 /// ---------------------------
@@ -244,17 +260,6 @@ Future<Response> handleUpload(Request request) async {
         body: jsonEncode({'status': 'error', 'message': 'Empty body'}),
         headers: {'content-type': 'application/json'},
       );
-    }
-
-    // Optionally you can inspect Content-Type if you want to validate image type:
-    final contentType =
-        request.headers['content-type'] ?? 'application/octet-stream';
-    if (!(contentType.contains('jpeg') ||
-        contentType.contains('jpg') ||
-        contentType.contains('png') ||
-        contentType.contains('image/'))) {
-      // Not strictly required — we still forward bytes, but you can reject if desired.
-      // For now, we still forward.
     }
 
     // Emit into the in-memory stream for immediate UI display
