@@ -47,6 +47,12 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   google_fonts: ^6.3.3
   rive: ^0.13.4
+  rpi_gpio: ^0.10.0
+  window_manager: ^0.5.2
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  path: ^1.9.0
+  flutter_svg: ^2.3.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
