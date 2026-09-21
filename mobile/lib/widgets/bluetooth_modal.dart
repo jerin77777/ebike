@@ -21,7 +21,7 @@ class BluetoothModal extends StatefulWidget {
 
 class _BluetoothModalState extends State<BluetoothModal>
     with SingleTickerProviderStateMixin {
-  final BluetoothService _bt = BluetoothService.instance;
+  final EbikeBluetoothService _bt = EbikeBluetoothService.instance;
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
   String? _connectingDeviceId;
@@ -364,7 +364,7 @@ class _BluetoothModalState extends State<BluetoothModal>
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: _scanResults.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final result = _scanResults[index];
         final dev = result.device;

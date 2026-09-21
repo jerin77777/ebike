@@ -39,7 +39,7 @@ class EbikeHomeScreen extends StatefulWidget {
 }
 
 class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
-  final BluetoothService _bt = BluetoothService.instance;
+  final EbikeBluetoothService _bt = EbikeBluetoothService.instance;
   StreamSubscription<BluetoothConnectionState>? _connSub;
   StreamSubscription<EbikeTelemetry>? _telemetrySub;
 
@@ -322,7 +322,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                           Icons.speed,
                         ),
                         _buildQuickStatus(
-                          '$_selectedMode',
+                          _selectedMode,
                           'Ride Mode',
                           Icons.tune,
                         ),

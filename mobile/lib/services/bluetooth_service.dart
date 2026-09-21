@@ -77,12 +77,11 @@ class EbikeTelemetry {
   }
 }
 
-class BluetoothService {
-  static final BluetoothService instance = BluetoothService._internal();
-  BluetoothService._internal();
+class EbikeBluetoothService {
+  static final EbikeBluetoothService instance = EbikeBluetoothService._internal();
+  EbikeBluetoothService._internal();
 
   BluetoothDevice? _connectedDevice;
-  BluetoothCharacteristic? _telemetryChar;
   BluetoothCharacteristic? _controlChar;
 
   StreamSubscription<BluetoothConnectionState>? _connSub;
@@ -170,7 +169,6 @@ class BluetoothService {
           for (final char in service.characteristics) {
             final uuidStr = char.uuid.toString().toLowerCase();
             if (uuidStr == telemetryCharUuid.toLowerCase()) {
-              _telemetryChar = char;
               // Subscribe to live telemetry notifications
               await char.setNotifyValue(true);
               _telemetrySub?.cancel();
@@ -206,7 +204,6 @@ class BluetoothService {
   void _cleanUpConnection() {
     _telemetrySub?.cancel();
     _telemetrySub = null;
-    _telemetryChar = null;
     _controlChar = null;
     _connectedDevice = null;
     _currentState = BluetoothConnectionState.disconnected;
