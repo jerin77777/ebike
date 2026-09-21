@@ -101,7 +101,27 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                     child: const _SubsurfaceGlow(),
                   ),
 
-                // Bottom-right icons: Beam icon on the left, indicator arrows on the right
+                // Bottom-left: High/Low Beam icon (leftmost with matching screen edge padding)
+                Positioned(
+                  left: 12,
+                  bottom: 8,
+                  child: SvgPicture.asset(
+                    widget.beam == LightBeam.high
+                        ? 'assets/high_beam.svg'
+                        : 'assets/low_beam.svg',
+                    width: 42,
+                    height: 42,
+                    fit: BoxFit.contain,
+                    colorFilter: ColorFilter.mode(
+                      widget.beam == LightBeam.high
+                          ? Colors.lightBlueAccent
+                          : Colors.white38,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+
+                // Bottom-right: Turn Indicator Neon Arrows
                 Positioned(
                   right: 12,
                   bottom: 8,
@@ -109,22 +129,6 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Beam icon to left of indicators
-                      SvgPicture.asset(
-                        widget.beam == LightBeam.high
-                            ? 'assets/high_beam.svg'
-                            : 'assets/low_beam.svg',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                        colorFilter: ColorFilter.mode(
-                          widget.beam == LightBeam.high
-                              ? Colors.lightBlueAccent
-                              : Colors.white38,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
                       _NeonArrow(
                         isActive: widget.direction == IndicatorDirection.left,
                         isRight: false,
@@ -900,5 +904,113 @@ class _TimeWidgetState extends State<TimeWidget> {
     final minute = _twoDigits(_now.minute);
 
     return Text('$hour:$minute', style: style);
+  }
+}
+
+class TemperatureWidget extends StatefulWidget {
+  final double initialTemp;
+  const TemperatureWidget({Key? key, this.initialTemp = 28.0}) : super(key: key);
+
+  @override
+  State<TemperatureWidget> createState() => _TemperatureWidgetState();
+}
+
+class _TemperatureWidgetState extends State<TemperatureWidget> {
+  late double _temp;
+  Timer? _timer;
+  final math.Random _rnd = math.Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _temp = widget.initialTemp;
+    // Gently simulate realistic normal temperature fluctuation between 27.5°C and 28.8°C
+    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) {
+        setState(() {
+          _temp = 28.0 + (_rnd.nextDouble() * 1.2 - 0.6);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.thermostat_rounded,
+          size: 18,
+          color: Colors.white70,
+        ),
+        const SizedBox(width: 3),
+        Text(
+          '${_temp.toStringAsFixed(1)}°C',
+          style: GoogleFonts.spaceGrotesk(
+            color: Pallet.font1,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class SmokeSensorWidget extends StatefulWidget {
+  const SmokeSensorWidget({Key? key}) : super(key: key);
+
+  @override
+  State<SmokeSensorWidget> createState() => _SmokeSensorWidgetState();
+}
+
+class _SmokeSensorWidgetState extends State<SmokeSensorWidget> {
+  // Simulates normal condition (no smoke detected)
+  final bool _smokeDetected = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _smokeDetected
+            ? Colors.redAccent.withValues(alpha: 0.2)
+            : const Color(0xFF14E01F).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: _smokeDetected
+              ? Colors.redAccent
+              : const Color(0xFF14E01F).withValues(alpha: 0.35),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _smokeDetected ? Icons.warning_amber_rounded : Icons.smoke_free_rounded,
+            size: 15,
+            color: _smokeDetected ? Colors.redAccent : const Color(0xFF14E01F),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            _smokeDetected ? 'SMOKE' : 'NO SMOKE',
+            style: GoogleFonts.spaceGrotesk(
+              color: _smokeDetected ? Colors.redAccent : const Color(0xFF14E01F),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -403,14 +403,33 @@ class _InterfaceState extends State<Interface> {
                   selectedTab: _selectedTab,
                   onTabChanged: (tab) => setState(() => _selectedTab = tab),
                 ),
-                const Positioned(top: 8, left: 8, child: TimeWidget()),
                 Positioned(
-                  top: 8,
-                  right: 8,
-                  child: BatteryWidget(
-                    initialPercent: 87,
-                    updateInterval: const Duration(seconds: 5),
-                    onChanged: (p) {},
+                  top: 10,
+                  left: 12,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      TimeWidget(),
+                      SizedBox(width: 16),
+                      TemperatureWidget(),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 12,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SmokeSensorWidget(),
+                      const SizedBox(width: 14),
+                      BatteryWidget(
+                        initialPercent: 87,
+                        updateInterval: const Duration(seconds: 5),
+                        onChanged: (p) {},
+                      ),
+                    ],
                   ),
                 ),
               ],
