@@ -46,7 +46,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   google_fonts: ^6.3.3
-  rive: ^0.14.11
+  rive: ^0.13.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
