@@ -248,4 +248,23 @@ class EbikeBluetoothService {
   Future<bool> setRideMode(String mode) => sendControlCommand('set_mode', mode);
   Future<bool> setLockState(bool locked) => sendControlCommand('set_lock', locked);
   Future<bool> setLights(String mode) => sendControlCommand('set_lights', mode);
+
+  /// Send searched map destination to paired E-Bike display
+  Future<bool> sendMapLocation({
+    required String name,
+    required String address,
+    required double lat,
+    required double lon,
+    String? distance,
+    String? duration,
+  }) {
+    return sendControlCommand('open_map', {
+      'name': name,
+      'address': address,
+      'lat': lat,
+      'lon': lon,
+      'dist': ?distance,
+      'dur': ?duration,
+    });
+  }
 }

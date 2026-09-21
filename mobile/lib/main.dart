@@ -129,7 +129,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
     const primaryColor = Color(0xFF0066FF);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF4F6F9),
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : const Color(0xFFF4F6F9),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -192,17 +194,19 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // E-Bike Image Showcase
-              Center(
-                child: Image.asset(
-                  'assets/ebike.png',
-                  height: 180,
-                  fit: BoxFit.fitHeight,
+              Expanded(
+                child: Center(
+                  child: Image.asset(
+                    'assets/ebike.png',
+                    height: 180,
+                    fit: BoxFit.fitHeight,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -339,142 +343,6 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
               const SizedBox(height: 18),
 
               // Remote Controls (Lock / Unlock & Headlights)
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _toggleLock,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: _isLocked
-                              ? Colors.redAccent.withValues(alpha: 0.12)
-                              : Colors.green.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: _isLocked ? Colors.redAccent : Colors.green,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
-                              color: _isLocked ? Colors.redAccent : Colors.green,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _isLocked ? "Bike Locked" : "Bike Unlocked",
-                              style: TextStyle(
-                                color: _isLocked ? Colors.redAccent : Colors.green,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _toggleLights,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: _lightsOn
-                              ? Colors.amber.withValues(alpha: 0.15)
-                              : (isDark ? const Color(0xFF242B3E) : Colors.white),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: _lightsOn ? Colors.amber : Colors.grey.withValues(alpha: 0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _lightsOn ? Icons.lightbulb_rounded : Icons.lightbulb_outline_rounded,
-                              color: _lightsOn ? Colors.amber : Colors.grey,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _lightsOn ? "Lights ON" : "Lights OFF",
-                              style: TextStyle(
-                                color: _lightsOn ? Colors.amber[800] : (isDark ? Colors.white70 : Colors.black87),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              // Ride Modes Selector
-              Text(
-                "Ride Mode",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: _rideModes.map((mode) {
-                  final isSelected = _selectedMode.toLowerCase() == mode['name'].toString().toLowerCase();
-                  final Color modeColor = mode['color'] as Color;
-
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => _onModeSelected(mode['name'] as String),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? modeColor.withValues(alpha: 0.18)
-                              : (isDark ? const Color(0xFF1E2230) : Colors.white),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSelected ? modeColor : Colors.grey.withValues(alpha: 0.2),
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              mode['icon'] as IconData,
-                              color: isSelected ? modeColor : Colors.grey,
-                              size: 20,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              mode['name'] as String,
-                              style: TextStyle(
-                                color: isSelected ? modeColor : (isDark ? Colors.white70 : Colors.black87),
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
 
               // Open Maps & Navigation Action Card
               GestureDetector(
@@ -569,7 +437,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                               'Open maps, search destinations & find charging spots',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
                               ),
                             ),
                           ],

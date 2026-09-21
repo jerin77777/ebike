@@ -10,6 +10,7 @@ import 'package:rive/rive.dart' hide Image;
 
 import 'globals.dart';
 import 'raspberrypi.dart';
+import 'navigation_widget.dart';
 
 import 'package:window_manager/window_manager.dart';
 
@@ -210,6 +211,8 @@ Future<void> _startWebSocketServer({
                     speedModeController.add(m);
                   } else if (action == 'set_lights') {
                     lightController.add(val.toString());
+                  } else if (action == 'open_map' || action == 'navigate_to' || action == 'set_destination') {
+                    NavigationState.openMap(MapDestination.fromDynamic(val));
                   }
                 }
               }
@@ -340,6 +343,10 @@ class _InterfaceState extends State<Interface> {
   StreamSubscription<Uint8List>? imageStreamSub;
   Timer? _streamAutoHideTimer;
 
+  // Show map / navigation screen
+  bool _showMap = false;
+  StreamSubscription<bool>? _navSub;
+
   // Turn indicator state
   IndicatorDirection _indicatorDirection = IndicatorDirection.none;
   LightBeam _beam = LightBeam.low;
@@ -447,6 +454,15 @@ class _InterfaceState extends State<Interface> {
     } catch (e) {
       // ignore
     }
+
+    // Listen to Navigation state (e.g. phone searched location)
+    try {
+      _navSub = NavigationState.activeController.stream.listen((active) {
+        if (mounted) {
+          setState(() => _showMap = active);
+        }
+      });
+    } catch (_) {}
   }
 
   void _onRiveInit(Artboard artboard) {
@@ -469,6 +485,7 @@ class _InterfaceState extends State<Interface> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _navSub?.cancel();
     _streamAutoHideTimer?.cancel();
     imageStreamSub?.cancel();
     speedSub?.cancel();
@@ -486,6 +503,14 @@ class _InterfaceState extends State<Interface> {
       } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
         HostState.toggle();
         return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
+        NavigationState.toggle();
+        return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+        if (_showMap) {
+          NavigationState.closeMap();
+          return true;
+        }
       }
     }
     return false;
@@ -497,6 +522,12 @@ class _InterfaceState extends State<Interface> {
         exit(0);
       } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
         HostState.toggle();
+      } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
+        NavigationState.toggle();
+      } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+        if (_showMap) {
+          NavigationState.closeMap();
+        }
       }
     }
   }
@@ -517,9 +548,16 @@ class _InterfaceState extends State<Interface> {
         body: SafeArea(
           child: Stack(
             children: [
-                // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
+                // If stream mode is on show StreamViewWrapper full screen, otherwise show map or normal UI.
                 if (_showStream)
                   const Positioned.fill(child: StreamViewWrapper())
+                else if (_showMap && NavigationState.currentDestination != null)
+                  Positioned.fill(
+                    child: EbikeNavigationWidget(
+                      destination: NavigationState.currentDestination!,
+                      onClose: () => NavigationState.closeMap(),
+                    ),
+                  )
                 else ...[
                   Center(
                     child: SizedBox(
@@ -555,10 +593,39 @@ class _InterfaceState extends State<Interface> {
                     right: 12,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        HostIndicatorWidget(),
-                        SizedBox(width: 10),
-                        SmokeSensorWidget(),
+                      children: [
+                        if (NavigationState.currentDestination != null) ...[
+                          GestureDetector(
+                            onTap: () => NavigationState.openMap(NavigationState.currentDestination!),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF0066FF)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.navigation, color: Color(0xFF3399FF), size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    NavigationState.currentDestination!.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        const HostIndicatorWidget(),
+                        const SizedBox(width: 10),
+                        const SmokeSensorWidget(),
                       ],
                     ),
                   ),

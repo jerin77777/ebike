@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'services/bluetooth_service.dart';
 
 class SearchResult {
   final String displayName;
@@ -228,6 +229,51 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  void _sendDestinationToEbike({
+    required String name,
+    required String address,
+    required double lat,
+    required double lon,
+    String? distance,
+    String? duration,
+    bool showToast = true,
+  }) {
+    final bt = EbikeBluetoothService.instance;
+    if (bt.isConnected) {
+      bt.sendMapLocation(
+        name: name,
+        address: address,
+        lat: lat,
+        lon: lon,
+        distance: distance,
+        duration: duration,
+      );
+      if (showToast && mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.bluetooth_connected, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Opened "$name" on E-Bike Display!',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF0066FF),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   void _selectSearchResult(SearchResult result) {
     FocusScope.of(context).unfocus();
     final targetLatLng = LatLng(result.lat, result.lon);
@@ -243,6 +289,14 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     _mapController.move(targetLatLng, 15.0);
+
+    // Automatically send searched location to paired E-Bike display
+    _sendDestinationToEbike(
+      name: result.name,
+      address: result.displayName,
+      lat: result.lat,
+      lon: result.lon,
+    );
   }
 
   // Reverse geocode when map is tapped
@@ -327,6 +381,17 @@ class _MapScreenState extends State<MapScreen> {
             });
 
             _fitMapToBounds(origin, destination);
+
+            // Sync calculated route to paired E-Bike display
+            _sendDestinationToEbike(
+              name: _selectedPlaceName ?? 'Destination',
+              address: _selectedAddress ?? '',
+              lat: destination.latitude,
+              lon: destination.longitude,
+              distance: _routeDistance,
+              duration: _routeDuration,
+              showToast: true,
+            );
           }
           return;
         }
@@ -805,6 +870,38 @@ class _MapScreenState extends State<MapScreen> {
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 42,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF0066FF),
+                                  side: const BorderSide(color: Color(0xFF0066FF), width: 1.5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  if (_selectedLocation != null) {
+                                    _sendDestinationToEbike(
+                                      name: _selectedPlaceName ?? 'Selected Location',
+                                      address: _selectedAddress ?? '',
+                                      lat: _selectedLocation!.latitude,
+                                      lon: _selectedLocation!.longitude,
+                                      distance: _routeDistance,
+                                      duration: _routeDuration,
+                                      showToast: true,
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.bluetooth_connected, size: 20),
+                                label: const Text(
+                                  'Open on E-Bike Display',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),

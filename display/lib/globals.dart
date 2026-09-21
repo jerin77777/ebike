@@ -88,3 +88,75 @@ class HostState {
     }
   }
 }
+
+class MapDestination {
+  final String name;
+  final String address;
+  final double lat;
+  final double lon;
+  final String? distance;
+  final String? duration;
+
+  const MapDestination({
+    required this.name,
+    required this.address,
+    required this.lat,
+    required this.lon,
+    this.distance,
+    this.duration,
+  });
+
+  factory MapDestination.fromDynamic(dynamic raw) {
+    if (raw is! Map) {
+      return const MapDestination(
+        name: 'Selected Destination',
+        address: '',
+        lat: 0.0,
+        lon: 0.0,
+      );
+    }
+    final map = Map<String, dynamic>.from(raw);
+    return MapDestination(
+      name: map['name']?.toString() ?? 'Destination',
+      address: map['address']?.toString() ?? '',
+      lat: (map['lat'] is num)
+          ? (map['lat'] as num).toDouble()
+          : double.tryParse(map['lat']?.toString() ?? '') ?? 0.0,
+      lon: (map['lon'] is num)
+          ? (map['lon'] as num).toDouble()
+          : double.tryParse(map['lon']?.toString() ?? '') ?? 0.0,
+      distance: map['dist']?.toString() ?? map['distance']?.toString(),
+      duration: map['dur']?.toString() ?? map['duration']?.toString(),
+    );
+  }
+}
+
+class NavigationState {
+  static final StreamController<MapDestination?> destinationController =
+      StreamController<MapDestination?>.broadcast();
+  static final StreamController<bool> activeController =
+      StreamController<bool>.broadcast();
+
+  static MapDestination? currentDestination;
+  static bool isNavigating = false;
+
+  static void openMap(MapDestination destination) {
+    currentDestination = destination;
+    isNavigating = true;
+    destinationController.add(destination);
+    activeController.add(true);
+  }
+
+  static void closeMap() {
+    isNavigating = false;
+    activeController.add(false);
+  }
+
+  static void toggle() {
+    if (isNavigating) {
+      closeMap();
+    } else if (currentDestination != null) {
+      openMap(currentDestination!);
+    }
+  }
+}
