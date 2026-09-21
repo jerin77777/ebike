@@ -103,7 +103,7 @@ packages:
     source: hosted
     version: "6.0.0"
   flutter_svg:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: flutter_svg
       sha256: "35882981abcbfb8c15b286f0cd690ff25bac12d95eff3e25ee207f37d4c42e7f"
@@ -121,7 +121,7 @@ packages:
     source: sdk
     version: "0.0.0"
   google_fonts:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: google_fonts
       sha256: ba03d03bcaa2f6cb7bd920e3b5027181db75ab524f8891c8bc3aa603885b8055
@@ -281,7 +281,7 @@ packages:
     source: hosted
     version: "3.0.0"
   path:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -385,7 +385,7 @@ packages:
     source: hosted
     version: "0.6.0"
   rive:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: rive
       sha256: "2551a44fa766a7ed3f52aa2b94feda6d18d00edc25dee5f66e72e9b365bb6d6c"
@@ -401,7 +401,7 @@ packages:
     source: hosted
     version: "0.4.15"
   rpi_gpio:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: rpi_gpio
       sha256: "7825b7ff7f5380ac966163368001a17befcaf8780822ae952d9783272c3913e5"
@@ -449,7 +449,7 @@ packages:
     source: hosted
     version: "0.2.2"
   shelf:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: shelf
       sha256: e7dd780a7ffb623c57850b33f43309312fc863fb6aa3d276a754bb299839ef12
@@ -457,7 +457,7 @@ packages:
     source: hosted
     version: "1.4.2"
   shelf_router:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: shelf_router
       sha256: f5e5d492440a7fb165fe1e2e1a623f31f734d3370900070b2b1e0d0428d59864
@@ -574,7 +574,7 @@ packages:
     source: hosted
     version: "1.1.1"
   window_manager:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: window_manager
       sha256: "05c231fd7b23d2380f14c5cc10b7b93d60d4fa4a2fb4e0f032de27e44b5560e9"

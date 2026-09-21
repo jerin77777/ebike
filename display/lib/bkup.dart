@@ -4,10 +4,10 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:math';
 
-import 'package:ebike/widgets.dart';
+import 'widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:rive/rive.dart';
+import 'package:rive/rive.dart' hide Image;
 
 import 'globals.dart';
 import 'raxda.dart';
@@ -261,9 +261,8 @@ class Interface extends StatefulWidget {
 }
 
 class _InterfaceState extends State<Interface> {
-  File? _riveFile;
-  RiveWidgetController? _riveController;
-  NumberInput? speedInput;
+  StateMachineController? _stateMachineController;
+  SMINumber? speedInput;
   StreamSubscription<double>? speedSub;
   StreamSubscription<int>? speedModeSub;
   StreamSubscription<bool>? reverseSub;
@@ -283,8 +282,6 @@ class _InterfaceState extends State<Interface> {
   @override
   void initState() {
     super.initState();
-
-    _loadRiveFile();
 
     // If you have a speedController stream in globals, attach to it safely
     try {
@@ -328,29 +325,20 @@ class _InterfaceState extends State<Interface> {
     }
   }
 
-  Future<void> _loadRiveFile() async {
-    try {
-      final file = await File.asset(
-        'assets/speedometer.riv',
-        riveFactory: Factory.rive,
-      );
-      if (file != null && mounted) {
-        final controller = RiveWidgetController(file);
-        NumberInput? numInput;
-        for (final input in controller.stateMachine.inputs) {
-          if (input is NumberInput) {
-            numInput = input;
-            break;
-          }
+  void _onRiveInit(Artboard artboard) {
+    final controller = StateMachineController.fromArtboard(
+      artboard,
+      'State Machine 1',
+    );
+    if (controller != null) {
+      artboard.addController(controller);
+      _stateMachineController = controller;
+      for (final input in controller.inputs) {
+        if (input is SMINumber) {
+          speedInput = input;
+          break;
         }
-        setState(() {
-          _riveFile = file;
-          _riveController = controller;
-          speedInput = numInput;
-        });
       }
-    } catch (e) {
-      // ignore
     }
   }
 
@@ -359,9 +347,7 @@ class _InterfaceState extends State<Interface> {
     speedSub?.cancel();
     speedModeSub?.cancel();
     reverseSub?.cancel();
-    speedInput?.dispose();
-    _riveController?.dispose();
-    _riveFile?.dispose();
+    _stateMachineController?.dispose();
     super.dispose();
   }
 
@@ -406,12 +392,11 @@ class _InterfaceState extends State<Interface> {
                   child: SizedBox(
                     width: 700,
                     height: 700,
-                    child: _riveController != null
-                        ? RiveWidget(
-                            controller: _riveController!,
-                            fit: Fit.cover,
-                          )
-                        : const SizedBox.shrink(),
+                    child: RiveAnimation.asset(
+                      'assets/speedometer.riv',
+                      fit: BoxFit.cover,
+                      onInit: _onRiveInit,
+                    ),
                   ),
                 ),
                 ModeTabs(
