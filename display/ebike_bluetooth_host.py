@@ -204,6 +204,12 @@ class TelemetryCharacteristic(Characteristic):
         print("[BLE Host] Telemetry notifications started")
         self.notifying = True
         self.notify_telemetry()
+        # Notify display that phone is connected
+        ws_outgoing_queue.append(json.dumps({
+            "type": "bluetooth_status",
+            "status": "connected",
+            "device_name": bike_state.get("connected_phone") or "Phone"
+        }))
 
     @dbus.service.method("org.bluez.GattCharacteristic1")
     def StopNotify(self):
@@ -211,6 +217,12 @@ class TelemetryCharacteristic(Characteristic):
             return
         print("[BLE Host] Telemetry notifications stopped")
         self.notifying = False
+        # Notify display that phone disconnected
+        ws_outgoing_queue.append(json.dumps({
+            "type": "bluetooth_status",
+            "status": "advertising",
+            "device_name": None
+        }))
 
     @dbus.service.signal(DBUS_PROP_IFACE, signature="sa{sv}as")
     def PropertiesChanged(self, interface, changed, invalidated):
@@ -238,6 +250,22 @@ class ControlCharacteristic(Characteristic):
 
             action = cmd.get("action") or cmd.get("cmd")
             val = cmd.get("val") if "val" in cmd else cmd.get("value")
+
+            # Always mark phone as connected on receiving any command
+            if action == "phone_connected":
+                phone_name = val.get("device_name", "Phone") if isinstance(val, dict) else str(val or "Phone")
+                bike_state["connected_phone"] = phone_name
+                ws_outgoing_queue.append(json.dumps({
+                    "type": "bluetooth_status",
+                    "status": "connected",
+                    "device_name": phone_name
+                }))
+            else:
+                ws_outgoing_queue.append(json.dumps({
+                    "type": "bluetooth_status",
+                    "status": "connected",
+                    "device_name": bike_state.get("connected_phone") or "Phone"
+                }))
 
             if action == "set_mode":
                 bike_state["mode"] = str(val).upper()

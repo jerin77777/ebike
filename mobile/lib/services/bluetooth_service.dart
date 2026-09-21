@@ -185,6 +185,16 @@ class EbikeBluetoothService {
         }
       }
 
+      // Send phone handshake so e-bike display immediately knows phone is connected
+      if (_controlChar != null) {
+        try {
+          final phoneName = device.platformName.isNotEmpty ? device.platformName : 'Phone';
+          await sendControlCommand('phone_connected', {
+            'device_name': phoneName,
+          });
+        } catch (_) {}
+      }
+
       return true;
     } catch (e) {
       debugPrint("Error connecting to ${device.remoteId}: $e");
@@ -248,6 +258,21 @@ class EbikeBluetoothService {
   Future<bool> setRideMode(String mode) => sendControlCommand('set_mode', mode);
   Future<bool> setLockState(bool locked) => sendControlCommand('set_lock', locked);
   Future<bool> setLights(String mode) => sendControlCommand('set_lights', mode);
+
+  /// Notify E-Bike display that phone is connected
+  Future<void> notifyPhoneConnected([String? name]) async {
+    if (_controlChar != null) {
+      try {
+        final phoneName = name ??
+            (_connectedDevice?.platformName.isNotEmpty == true
+                ? _connectedDevice!.platformName
+                : 'Phone');
+        await sendControlCommand('phone_connected', {
+          'device_name': phoneName,
+        });
+      } catch (_) {}
+    }
+  }
 
   /// Send searched map destination to paired E-Bike display
   Future<bool> sendMapLocation({

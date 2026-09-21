@@ -65,7 +65,7 @@ void main() async {
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
-    size: Size(1024, 720),
+    size: Size(1024, 700),
     center: true,
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -200,7 +200,18 @@ Future<void> _startWebSocketServer({
                   final cmd = parsed['command'];
                   final action = cmd['action'] ?? cmd['cmd'];
                   final val = cmd['val'] ?? cmd['value'];
-                  if (action == 'set_mode') {
+
+                  // Any command from mobile means phone is connected!
+                  final phoneName = (val is Map && val['device_name'] != null)
+                      ? val['device_name'].toString()
+                      : (BluetoothState.connectedDevice ?? 'Phone');
+                  if (BluetoothState.currentStatus != BtConnectionState.connected) {
+                    BluetoothState.update(BtConnectionState.connected, phoneName);
+                  }
+
+                  if (action == 'phone_connected' || action == 'phone_sync') {
+                    BluetoothState.update(BtConnectionState.connected, phoneName);
+                  } else if (action == 'set_mode') {
                     int m = 1;
                     final vStr = val.toString().toUpperCase();
                     if (vStr == 'CRUISE' || vStr == 'CITY') {
@@ -347,6 +358,12 @@ class _InterfaceState extends State<Interface> {
   bool _showMap = false;
   StreamSubscription<bool>? _navSub;
 
+  // Phone Connected notification banner
+  bool _showPhoneConnectedBanner = false;
+  String _connectedPhoneName = 'Phone';
+  Timer? _phoneBannerTimer;
+  StreamSubscription<BtConnectionState>? _btStateSub;
+
   // Turn indicator state
   IndicatorDirection _indicatorDirection = IndicatorDirection.none;
   LightBeam _beam = LightBeam.low;
@@ -463,6 +480,27 @@ class _InterfaceState extends State<Interface> {
         }
       });
     } catch (_) {}
+
+    // Listen to Bluetooth phone connection state to show connected banner
+    try {
+      _btStateSub = BluetoothState.statusController.stream.listen((state) {
+        if (state == BtConnectionState.connected && mounted) {
+          final phone = BluetoothState.connectedDevice ?? 'Phone';
+          setState(() {
+            _showPhoneConnectedBanner = true;
+            _connectedPhoneName = phone;
+          });
+          _phoneBannerTimer?.cancel();
+          _phoneBannerTimer = Timer(const Duration(milliseconds: 3500), () {
+            if (mounted) {
+              setState(() => _showPhoneConnectedBanner = false);
+            }
+          });
+        } else if (mounted) {
+          setState(() => _showPhoneConnectedBanner = false);
+        }
+      });
+    } catch (_) {}
   }
 
   void _onRiveInit(Artboard artboard) {
@@ -485,6 +523,8 @@ class _InterfaceState extends State<Interface> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _phoneBannerTimer?.cancel();
+    _btStateSub?.cancel();
     _navSub?.cancel();
     _streamAutoHideTimer?.cancel();
     imageStreamSub?.cancel();
@@ -647,6 +687,56 @@ class _InterfaceState extends State<Interface> {
                     beam: _beam,
                   ),
                 ),
+
+                // Animated Phone Connected Notification Banner
+                if (_showPhoneConnectedBanner)
+                  Positioned(
+                    top: 50,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xEE0B1220),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF00E676), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00E676).withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF00E676),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.check, color: Colors.black, size: 14),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(Icons.smartphone_rounded, color: Color(0xFF00E5FF), size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Phone Connected: $_connectedPhoneName',
+                              style: GoogleFonts.spaceGrotesk(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

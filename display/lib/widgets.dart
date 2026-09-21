@@ -1199,52 +1199,87 @@ class _BluetoothStatusWidgetState extends State<BluetoothStatusWidget>
     switch (_status) {
       case BtConnectionState.connected:
         iconColor = const Color(0xFF00E5FF); // Vibrant Cyan
-        label = _deviceName != null && _deviceName!.isNotEmpty
+        final String rawName = (_deviceName != null && _deviceName!.isNotEmpty)
             ? _deviceName!
-            : 'PAIRED';
-        iconWidget = Icon(Icons.bluetooth_connected_rounded, size: 16, color: iconColor);
+            : 'Phone';
+        if (rawName.toUpperCase().contains('PHONE')) {
+          label = 'PHONE CONNECTED';
+        } else {
+          label = 'PHONE: $rawName';
+        }
+        iconWidget = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: Color(0xFF00E676),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF00E676),
+                    blurRadius: 6,
+                    spreadRadius: 1.5,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 5),
+            const Icon(Icons.smartphone_rounded, size: 16, color: Color(0xFF00E5FF)),
+          ],
+        );
         break;
       case BtConnectionState.advertising:
         iconColor = const Color(0xFF2979FF); // Bright Blue
-        label = 'READY TO PAIR';
+        label = 'WAITING FOR PHONE';
         iconWidget = AnimatedBuilder(
           animation: _pulseController,
           builder: (context, child) {
             return Opacity(
               opacity: 0.4 + (_pulseController.value * 0.6),
-              child: Icon(Icons.bluetooth_searching_rounded, size: 16, color: iconColor),
+              child: const Icon(Icons.bluetooth_searching_rounded, size: 16, color: Color(0xFF2979FF)),
             );
           },
         );
         break;
       case BtConnectionState.disconnected:
         iconColor = Colors.white38;
-        label = 'BT OFF';
-        iconWidget = Icon(Icons.bluetooth_rounded, size: 16, color: iconColor);
+        label = 'NO PHONE';
+        iconWidget = const Icon(Icons.smartphone_outlined, size: 16, color: Colors.white38);
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: iconColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
+        color: iconColor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: iconColor.withValues(alpha: 0.35),
-          width: 1,
+          color: iconColor.withValues(alpha: 0.45),
+          width: 1.2,
         ),
+        boxShadow: _status == BtConnectionState.connected
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           iconWidget,
-          const SizedBox(width: 5),
+          const SizedBox(width: 6),
           Text(
             label,
             style: GoogleFonts.spaceGrotesk(
               color: iconColor,
               fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
           ),
         ],

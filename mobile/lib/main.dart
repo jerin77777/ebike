@@ -70,6 +70,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
           _isBtConnected = (state == BluetoothConnectionState.connected);
         });
       }
+      if (state == BluetoothConnectionState.connected) {
+        _bt.notifyPhoneConnected();
+      }
     });
 
     // Listen to real-time telemetry from Raspberry Pi 4B
