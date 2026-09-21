@@ -244,10 +244,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const RotatedBox(
-        quarterTurns: 2,
-        child: Interface(),
-      ),
+      home: const Interface(),
     );
   }
 }
