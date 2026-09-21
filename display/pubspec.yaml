@@ -35,7 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^6.3.3
-  rive: ^0.13.20
+  rive: ^0.14.11
   rpi_gpio: ^0.10.0
   window_manager: ^0.3.5
   shelf: ^1.4.1

@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'package:ebike/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:rive/rive.dart' hide LinearGradient, Image;
+import 'package:rive/rive.dart';
 
 import 'globals.dart';
 import 'raxda.dart';
@@ -260,9 +260,9 @@ class Interface extends StatefulWidget {
 }
 
 class _InterfaceState extends State<Interface> {
-  StateMachineController? _stateMachineController;
-  SMINumber? speedInput;
-  late SimpleAnimation _simpleAnim;
+  File? _riveFile;
+  RiveWidgetController? _riveController;
+  NumberInput? speedInput;
   StreamSubscription<double>? speedSub;
   StreamSubscription<int>? speedModeSub;
   StreamSubscription<bool>? reverseSub;
@@ -282,12 +282,12 @@ class _InterfaceState extends State<Interface> {
   void initState() {
     super.initState();
 
-    _simpleAnim = SimpleAnimation('Startup');
+    _loadRiveFile();
 
     // If you have a speedController stream in globals, attach to it safely
     try {
       speedSub = speedController.stream.listen((value) {
-        speedInput?.change(value);
+        speedInput?.value = value;
       });
     } catch (e) {
       // ignore if speedController isn't present
@@ -363,31 +363,41 @@ class _InterfaceState extends State<Interface> {
     }
   }
 
+  Future<void> _loadRiveFile() async {
+    try {
+      final file = await File.asset(
+        'assets/speedometer.riv',
+        riveFactory: Factory.rive,
+      );
+      if (file != null && mounted) {
+        final controller = RiveWidgetController(file);
+        NumberInput? numInput;
+        for (final input in controller.stateMachine.inputs) {
+          if (input is NumberInput) {
+            numInput = input;
+            break;
+          }
+        }
+        setState(() {
+          _riveFile = file;
+          _riveController = controller;
+          speedInput = numInput;
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   @override
   void dispose() {
     speedSub?.cancel();
     speedModeSub?.cancel();
     reverseSub?.cancel();
+    speedInput?.dispose();
+    _riveController?.dispose();
+    _riveFile?.dispose();
     super.dispose();
-  }
-
-  void _onRiveInit(Artboard artboard) {
-    _stateMachineController = StateMachineController.fromArtboard(
-      artboard,
-      'State Machine 1',
-    );
-    if (_stateMachineController != null) {
-      artboard.addController(_stateMachineController!);
-
-      for (final input in _stateMachineController!.inputs) {
-        if (input is SMINumber) {
-          speedInput = input;
-          break;
-        }
-      }
-    } else {
-      artboard.addController(_simpleAnim);
-    }
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -395,16 +405,6 @@ class _InterfaceState extends State<Interface> {
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
       }
-      // Removed keyboard controls for indicators - now controlled by Raspberry Pi
-      // if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      //   setState(() => _indicatorDirection = IndicatorDirection.left);
-      // }
-      // if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      //   setState(() => _indicatorDirection = IndicatorDirection.right);
-      // }
-      // if (event.logicalKey == LogicalKeyboardKey.space) {
-      //   setState(() => _indicatorDirection = IndicatorDirection.none);
-      // }
     }
   }
 
@@ -432,11 +432,12 @@ class _InterfaceState extends State<Interface> {
                     child: SizedBox(
                       width: 700,
                       height: 700,
-                      child: RiveAnimation.asset(
-                        'assets/speedometer.riv',
-                        onInit: _onRiveInit,
-                        fit: BoxFit.cover,
-                      ),
+                      child: _riveController != null
+                          ? RiveWidget(
+                              controller: _riveController!,
+                              fit: Fit.cover,
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
                   ModeTabs(
