@@ -198,10 +198,22 @@ void connectWiFi(bool force) {
   }
 
   unsigned long startAttempt = millis();
-  // Wait up to 5 seconds per attempt so loop remains responsive
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 5000) {
+  // Wait up to 4 seconds per attempt
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 4000) {
     Serial.print(".");
     delay(250);
+  }
+
+  // If failed and password has < 8 chars (Linux AP creates open hotspot when < 8 chars), try open AP
+  if (WiFi.status() != WL_CONNECTED && strlen(active_password) > 0 && strlen(active_password) < 8) {
+    WiFi.disconnect();
+    delay(50);
+    WiFi.begin(active_ssid);
+    startAttempt = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 3000) {
+      Serial.print(".");
+      delay(250);
+    }
   }
 
   if (WiFi.status() == WL_CONNECTED) {

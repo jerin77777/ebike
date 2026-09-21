@@ -2,7 +2,7 @@
 // ESP32-CAM: Ultrasonic Proximity (<50cm) Streaming & Raspberry Pi Hotspot Client
 // ==============================================================================
 // - Measures distance using HC-SR04 ultrasonic sensor (TRIG: 13, ECHO: 14)
-// - Connects to Raspberry Pi Hotspot ("EBike-ESP32-AP", default pass: "ebike1234")
+// - Connects to Raspberry Pi Hotspot ("ebike", default pass: "123")
 // - Automatically streams camera frames to WebSocket server (ws://10.42.0.1:5001/ws)
 //   whenever the range is below 50 cm or reverse mode is triggered.
 // - Auto-reconnects when Raspberry Pi hotspot is turned ON (via 'h' key on Pi)
@@ -30,8 +30,8 @@ const unsigned long PROXIMITY_HOLD_MS = 1500; // Keep streaming 1.5s after range
 // Wi-Fi and Raspberry Pi WebSocket Server Configuration
 // ------------------------------------------------------------------------------
 // Raspberry Pi AP credentials (matches hotspot_config.env / toggle_hotspot.sh)
-const char *rpi_ssid     = "EBike-ESP32-AP";
-const char *rpi_password = "ebike1234";
+const char *rpi_ssid     = "ebike";
+const char *rpi_password = "123";
 const char *rpi_host     = "10.42.0.1";
 const uint16_t rpi_ws_port = 5001;
 const char *rpi_ws_path    = "/ws";
@@ -198,10 +198,22 @@ void connectWiFi(bool force) {
   }
 
   unsigned long startAttempt = millis();
-  // Wait up to 5 seconds per attempt so loop remains responsive
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 5000) {
+  // Wait up to 4 seconds per attempt
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 4000) {
     Serial.print(".");
     delay(250);
+  }
+
+  // If failed and password has < 8 chars (Linux AP creates open hotspot when < 8 chars), try open AP
+  if (WiFi.status() != WL_CONNECTED && strlen(active_password) > 0 && strlen(active_password) < 8) {
+    WiFi.disconnect();
+    delay(50);
+    WiFi.begin(active_ssid);
+    startAttempt = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 3000) {
+      Serial.print(".");
+      delay(250);
+    }
   }
 
   if (WiFi.status() == WL_CONNECTED) {
