@@ -65,7 +65,7 @@ void main() async {
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
-    size: Size(1024, 700),
+    size: Size(1024, 650),
     center: true,
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -601,8 +601,8 @@ class _InterfaceState extends State<Interface> {
                 else ...[
                   Center(
                     child: SizedBox(
-                      width: 700,
-                      height: 700,
+                      width: 650,
+                      height: 650,
                       child: RiveAnimation.asset(
                         'assets/speedometer.riv',
                         fit: BoxFit.cover,

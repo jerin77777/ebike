@@ -5,7 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'globals.dart';
 import 'raspberrypi.dart';
 
-/// Fullscreen Navigation Widget for E-Bike Display (1024x700)
+/// Fullscreen Navigation Widget for E-Bike Display (1024x650)
 /// Displays the searched map location from the phone via OpenStreetMap,
 /// with an automotive HUD banner, floating speed gauge, and touch controls.
 class EbikeNavigationWidget extends StatefulWidget {
