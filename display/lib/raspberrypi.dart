@@ -6,7 +6,7 @@ import 'package:rpi_gpio/rpi_gpio.dart';
 
 StreamController<double> speedController = StreamController<double>.broadcast();
 
-// New controllers for additional states
+// Controllers for additional states
 StreamController<String> indicatorController =
     StreamController<String>.broadcast(); // "none", "left", "right"
 StreamController<String> lightController =
@@ -16,19 +16,26 @@ StreamController<int> speedModeController =
 StreamController<bool> reverseController =
     StreamController<bool>.broadcast(); // true / false
 
-/// Simple Radxa Zero 3W speedometer using a Hall sensor on Physical Pin 32 (GPIOAO_4 / Linux GPIO 416).
-/// - Uses internal pull-up (so Hall sensor / reed connects pin to GND when triggered).
-/// - Debounces pulses (minMs). Prints MPH every second.
+/// Simple Raspberry Pi 4B speedometer & switch listener using rpi_gpio.
+/// Pin mapping matches the custom hardware wiring diagram (40-Pin Header physical pins):
+/// - Pin 32 (BCM GPIO 12): Speedometer Hall Sensor Pulse
+/// - Pin 35 (BCM GPIO 19): Controller Mode Line 1
+/// - Pin 37 (BCM GPIO 26): Controller Mode Line 2
+/// - Pin 36 (BCM GPIO 16): Turn Indicator Left
+/// - Pin 40 (BCM GPIO 21): Turn Indicator Right
+/// - Pin 23 (BCM GPIO 11): Low Beam Headlight Switch
+/// - Pin 24 (BCM GPIO 8):  High Beam Headlight Switch
+/// - Pin 22 (BCM GPIO 25): Reverse Mode Switch
 Future<void> listen() async {
-  // --- Configuration (Radxa Zero 3W 40-Pin Header Numbering) ---
-  const int reedPhysicalPin = 32;    // Speedometer Hall Sensor (GPIOAO_4 / Linux GPIO 416)
-  const int speedMode1Pin = 35;      // Controller Mode Line 1 (GPIOAO_8 / Linux GPIO 420)
-  const int speedMode2Pin = 37;      // Controller Mode Line 2 (GPIOAO_9 / Linux GPIO 421)
-  const int indicatorLeftPin = 36;   // Turn Indicator Left (GPIOH_8 / Linux GPIO 451)
-  const int indicatorRightPin = 40;  // Turn Indicator Right (GPIOAO_11 / Linux GPIO 423)
-  const int lowBeamPin = 23;         // Low Beam Switch (GPIOH_7 / Linux GPIO 450)
-  const int highBeamPin = 24;        // High Beam Switch (GPIOH_6 / Linux GPIO 449)
-  const int reversePin = 22;         // Reverse Switch (GPIOC_7 / Linux GPIO 475)
+  // --- Configuration (Raspberry Pi 40-Pin Header Physical Pin Numbers) ---
+  const int reedPhysicalPin = 32;    // Speedometer Hall Sensor (BCM GPIO 12)
+  const int speedMode1Pin = 35;      // Controller Mode Line 1 (BCM GPIO 19)
+  const int speedMode2Pin = 37;      // Controller Mode Line 2 (BCM GPIO 26)
+  const int indicatorLeftPin = 36;   // Turn Indicator Left (BCM GPIO 16)
+  const int indicatorRightPin = 40;  // Turn Indicator Right (BCM GPIO 21)
+  const int lowBeamPin = 23;         // Low Beam Switch (BCM GPIO 11)
+  const int highBeamPin = 24;        // High Beam Switch (BCM GPIO 8)
+  const int reversePin = 22;         // Reverse Switch (BCM GPIO 25)
 
   const double radiusInches = 18; // tire radius in inches (same as Arduino sketch)
   const int timeoutMs = 2000; // if no pulse within this -> speed = 0
@@ -88,7 +95,7 @@ Future<void> listen() async {
     lastRawValue = rawValue;
   });
 
-  // --- Additional switch inputs (unchanged) ---
+  // --- Additional switch inputs ---
   final speed1Input = gpio.input(speedMode1Pin, Pull.up);
   final speed2Input = gpio.input(speedMode2Pin, Pull.up);
   final lowBeamInput = gpio.input(lowBeamPin, Pull.up);

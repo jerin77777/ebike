@@ -10,7 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:rive/rive.dart' hide Image;
 
 import 'globals.dart';
-import 'raxda.dart';
+import 'raspberrypi.dart';
 
 import 'package:window_manager/window_manager.dart';
 
