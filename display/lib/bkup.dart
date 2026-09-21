@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:math';
 
 import 'package:ebike/widgets.dart';
 import 'package:flutter/services.dart';
@@ -271,12 +272,13 @@ class _InterfaceState extends State<Interface> {
   // Selected tab state
   String _selectedTab = 'SPORT';
 
+  double _distanceKm = 12.4;
+
   // Show stream/fullscreen image
   bool _showStream = false;
 
   // Turn indicator state
   IndicatorDirection _indicatorDirection = IndicatorDirection.none;
-  LightBeam _beam = LightBeam.low;
 
   @override
   void initState() {
@@ -324,43 +326,6 @@ class _InterfaceState extends State<Interface> {
     } catch (e) {
       // ignore if reverseController isn't present
     }
-
-    // Listen to Raspberry Pi light beam state
-    try {
-      lightController.stream.listen((String mode) {
-        final LightBeam next = (mode == 'high_beam')
-            ? LightBeam.high
-            : LightBeam.low;
-        if (next != _beam) {
-          setState(() => _beam = next);
-        }
-      });
-    } catch (e) {
-      // ignore if lightController isn't present
-    }
-
-    // Listen to Raspberry Pi indicator state
-    try {
-      indicatorController.stream.listen((String dir) {
-        IndicatorDirection next;
-        switch (dir) {
-          case 'left':
-            next = IndicatorDirection.left;
-            break;
-          case 'right':
-            next = IndicatorDirection.right;
-            break;
-          case 'none':
-          default:
-            next = IndicatorDirection.none;
-        }
-        if (next != _indicatorDirection) {
-          setState(() => _indicatorDirection = next);
-        }
-      });
-    } catch (e) {
-      // ignore if indicatorController isn't present
-    }
   }
 
   Future<void> _loadRiveFile() async {
@@ -405,6 +370,15 @@ class _InterfaceState extends State<Interface> {
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
       }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        setState(() => _indicatorDirection = IndicatorDirection.left);
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        setState(() => _indicatorDirection = IndicatorDirection.right);
+      }
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        setState(() => _indicatorDirection = IndicatorDirection.none);
+      }
     }
   }
 
@@ -424,58 +398,54 @@ class _InterfaceState extends State<Interface> {
         body: SafeArea(
           child: Stack(
             children: [
-                // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
-                if (_showStream)
-                  const Positioned.fill(child: StreamViewWrapper())
-                else ...[
-                  Center(
-                    child: SizedBox(
-                      width: 700,
-                      height: 700,
-                      child: _riveController != null
-                          ? RiveWidget(
-                              controller: _riveController!,
-                              fit: Fit.cover,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
-                  ModeTabs(
-                    selectedTab: _selectedTab,
-                    onTabChanged: (tab) => setState(() => _selectedTab = tab),
-                  ),
-                  const Positioned(top: 8, left: 8, child: TimeWidget()),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: BatteryWidget(
-                      initialPercent: 87,
-                      updateInterval: const Duration(seconds: 5),
-                      onChanged: (p) {},
-                    ),
-                  ),
-                  // Removed separate BeamIndicator; now shown in TurnIndicatorBar
-                ],
-                // Indicator bar overlays at the very bottom regardless of mode
-                const Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SizedBox.shrink(),
+              // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
+              if (_showStream)
+                const Positioned.fill(child: StreamViewWrapper())
+              else ...[
+                Center(
+                  child: SizedBox(
+                    width: 700,
+                    height: 700,
+                    child: _riveController != null
+                        ? RiveWidget(
+                            controller: _riveController!,
+                            fit: Fit.cover,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
+                ModeTabs(
+                  selectedTab: _selectedTab,
+                  onTabChanged: (tab) => setState(() => _selectedTab = tab),
+                ),
+                const Positioned(top: 8, left: 8, child: TimeWidget()),
                 Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: TurnIndicatorBar(
-                    direction: _indicatorDirection,
-                    beam: _beam,
+                  top: 8,
+                  right: 8,
+                  child: BatteryWidget(
+                    initialPercent: 87,
+                    updateInterval: const Duration(seconds: 5),
+                    onChanged: (p) {},
                   ),
                 ),
               ],
-            ),
+              // Indicator bar overlays at the very bottom regardless of mode
+              const Positioned.fill(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SizedBox.shrink(),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: TurnIndicatorBar(direction: _indicatorDirection),
+              ),
+            ],
           ),
         ),
+      ),
     );
   }
 }
@@ -522,56 +492,56 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-          Positioned.fill(
-            child: _latestBytes != null
-                ? Image.memory(
-                    _latestBytes!,
-                    fit: BoxFit.cover,
-                    gaplessPlayback:
-                        true, // helps avoid flicker when bytes update quickly
-                  )
-                : Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.photo, size: 96, color: Colors.white24),
-                          SizedBox(height: 12),
-                          Text(
-                            'Waiting for image stream...',
-                            style: TextStyle(color: Colors.white38),
-                          ),
-                        ],
-                      ),
+        Positioned.fill(
+          child: _latestBytes != null
+              ? Image.memory(
+                  _latestBytes!,
+                  fit: BoxFit.cover,
+                  gaplessPlayback:
+                      true, // helps avoid flicker when bytes update quickly
+                )
+              : Container(
+                  color: Colors.black,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.photo, size: 96, color: Colors.white24),
+                        SizedBox(height: 12),
+                        Text(
+                          'Waiting for image stream...',
+                          style: TextStyle(color: Colors.white38),
+                        ),
+                      ],
                     ),
                   ),
-          ),
-
-          // Close button
-          Positioned(
-            top: 12,
-            left: 12,
-            child: SafeArea(
-              minimum: const EdgeInsets.all(4),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black54,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
                 ),
-                onPressed: () {
-                  final state = context
-                      .findAncestorStateOfType<_InterfaceState>();
-                  state?._setShowStream(false);
-                },
-                child: const Text('Close', style: TextStyle(color: Colors.white)),
+        ),
+
+        // Close button
+        Positioned(
+          top: 12,
+          left: 12,
+          child: SafeArea(
+            minimum: const EdgeInsets.all(4),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black54,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
+              onPressed: () {
+                final state = context
+                    .findAncestorStateOfType<_InterfaceState>();
+                state?._setShowStream(false);
+              },
+              child: const Text('Close', style: TextStyle(color: Colors.white)),
             ),
           ),
-        ],
-      );
+        ),
+      ],
+    );
   }
 }
