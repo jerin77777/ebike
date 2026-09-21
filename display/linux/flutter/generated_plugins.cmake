@@ -3,7 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  rive_native
+  rive_common
   screen_retriever
   window_manager
 )
