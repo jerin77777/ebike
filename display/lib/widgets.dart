@@ -1017,3 +1017,107 @@ class _SmokeSensorWidgetState extends State<SmokeSensorWidget> {
     );
   }
 }
+
+class BluetoothStatusWidget extends StatefulWidget {
+  const BluetoothStatusWidget({Key? key}) : super(key: key);
+
+  @override
+  State<BluetoothStatusWidget> createState() => _BluetoothStatusWidgetState();
+}
+
+class _BluetoothStatusWidgetState extends State<BluetoothStatusWidget>
+    with SingleTickerProviderStateMixin {
+  BtConnectionState _status = BluetoothState.currentStatus;
+  String? _deviceName = BluetoothState.connectedDevice;
+  StreamSubscription<BtConnectionState>? _statusSub;
+  StreamSubscription<String?>? _nameSub;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
+    _statusSub = BluetoothState.statusController.stream.listen((state) {
+      if (mounted) setState(() => _status = state);
+    });
+
+    _nameSub = BluetoothState.deviceNameController.stream.listen((name) {
+      if (mounted) setState(() => _deviceName = name);
+    });
+  }
+
+  @override
+  void dispose() {
+    _statusSub?.cancel();
+    _nameSub?.cancel();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Color iconColor;
+    String label;
+    Widget iconWidget;
+
+    switch (_status) {
+      case BtConnectionState.connected:
+        iconColor = const Color(0xFF00E5FF); // Vibrant Cyan
+        label = _deviceName != null && _deviceName!.isNotEmpty
+            ? _deviceName!
+            : 'PAIRED';
+        iconWidget = Icon(Icons.bluetooth_connected_rounded, size: 16, color: iconColor);
+        break;
+      case BtConnectionState.advertising:
+        iconColor = const Color(0xFF2979FF); // Bright Blue
+        label = 'READY TO PAIR';
+        iconWidget = AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, child) {
+            return Opacity(
+              opacity: 0.4 + (_pulseController.value * 0.6),
+              child: Icon(Icons.bluetooth_searching_rounded, size: 16, color: iconColor),
+            );
+          },
+        );
+        break;
+      case BtConnectionState.disconnected:
+        iconColor = Colors.white38;
+        label = 'BT OFF';
+        iconWidget = Icon(Icons.bluetooth_rounded, size: 16, color: iconColor);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: iconColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.35),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          iconWidget,
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: GoogleFonts.spaceGrotesk(
+              color: iconColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

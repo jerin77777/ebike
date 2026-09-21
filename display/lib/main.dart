@@ -93,6 +93,32 @@ final StreamController<Uint8List> imageStreamController =
 final Set<WebSocket> _wsClients = <WebSocket>{};
 bool _lastReverse = false;
 
+/// Broadcasts telemetry updates to connected clients (like ebike_bluetooth_host.py)
+void broadcastTelemetry({
+  double? speed,
+  String? mode,
+  String? lights,
+  String? indicator,
+  bool? reverse,
+}) {
+  final Map<String, dynamic> data = {};
+  if (speed != null) data['speed'] = speed;
+  if (mode != null) data['mode'] = mode;
+  if (lights != null) data['lights'] = lights;
+  if (indicator != null) data['indicator'] = indicator;
+  if (reverse != null) data['reverse'] = reverse;
+  if (data.isEmpty) return;
+
+  final payload = jsonEncode(data);
+  for (final ws in _wsClients.toList()) {
+    try {
+      ws.add(payload);
+    } catch (_) {
+      _wsClients.remove(ws);
+    }
+  }
+}
+
 Future<void> _startWebSocketServer({
   required InternetAddress address,
   required int port,
@@ -107,6 +133,7 @@ Future<void> _startWebSocketServer({
   reverseController.stream.listen((bool isReverse) {
     _lastReverse = isReverse;
     final String cmd = isReverse ? 'start' : 'stop';
+    broadcastTelemetry(reverse: isReverse);
     for (final ws in _wsClients.toList()) {
       try {
         ws.add(cmd);
@@ -136,8 +163,38 @@ Future<void> _startWebSocketServer({
           if (data is List<int>) {
             imageStreamController.add(Uint8List.fromList(data));
           } else if (data is String) {
-            // Text messages can be logged or used for status
-            // No-op
+            try {
+              final parsed = jsonDecode(data);
+              if (parsed is Map<String, dynamic>) {
+                if (parsed['type'] == 'bluetooth_status') {
+                  final statusStr = parsed['status'];
+                  final dev = parsed['device_name'] as String?;
+                  BtConnectionState st = BtConnectionState.disconnected;
+                  if (statusStr == 'advertising') {
+                    st = BtConnectionState.advertising;
+                  } else if (statusStr == 'connected') {
+                    st = BtConnectionState.connected;
+                  }
+                  BluetoothState.update(st, dev);
+                } else if (parsed['source'] == 'mobile_bluetooth' && parsed['command'] != null) {
+                  final cmd = parsed['command'];
+                  final action = cmd['action'] ?? cmd['cmd'];
+                  final val = cmd['val'] ?? cmd['value'];
+                  if (action == 'set_mode') {
+                    int m = 1;
+                    final vStr = val.toString().toUpperCase();
+                    if (vStr == 'CRUISE' || vStr == 'CITY') {
+                      m = 2;
+                    } else if (vStr == 'SPORT' || vStr == 'TURBO') {
+                      m = 3;
+                    }
+                    speedModeController.add(m);
+                  } else if (action == 'set_lights') {
+                    lightController.add(val.toString());
+                  }
+                }
+              }
+            } catch (_) {}
           }
         },
         onError: (_) {
@@ -285,6 +342,7 @@ class _InterfaceState extends State<Interface> {
     try {
       speedSub = speedController.stream.listen((value) {
         speedInput?.value = value;
+        broadcastTelemetry(speed: value);
       });
     } catch (e) {
       // ignore if speedController isn't present
@@ -308,6 +366,7 @@ class _InterfaceState extends State<Interface> {
         if (tab != _selectedTab) {
           setState(() => _selectedTab = tab);
         }
+        broadcastTelemetry(mode: tab);
       });
     } catch (e) {
       // ignore if speedModeController isn't present
@@ -331,6 +390,7 @@ class _InterfaceState extends State<Interface> {
         if (next != _beam) {
           setState(() => _beam = next);
         }
+        broadcastTelemetry(lights: mode);
       });
     } catch (e) {
       // ignore if lightController isn't present
@@ -354,6 +414,7 @@ class _InterfaceState extends State<Interface> {
         if (next != _indicatorDirection) {
           setState(() => _indicatorDirection = next);
         }
+        broadcastTelemetry(indicator: dir);
       });
     } catch (e) {
       // ignore if indicatorController isn't present
@@ -438,6 +499,8 @@ class _InterfaceState extends State<Interface> {
                         TimeWidget(),
                         SizedBox(width: 16),
                         TemperatureWidget(),
+                        SizedBox(width: 16),
+                        BluetoothStatusWidget(),
                       ],
                     ),
                   ),

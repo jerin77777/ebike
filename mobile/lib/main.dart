@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'map_screen.dart';
+import 'services/bluetooth_service.dart';
+import 'widgets/bluetooth_modal.dart';
 
 void main() {
   runApp(const EbikeMapApp());
@@ -35,11 +39,17 @@ class EbikeHomeScreen extends StatefulWidget {
 }
 
 class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
+  final BluetoothService _bt = BluetoothService.instance;
+  StreamSubscription<BluetoothConnectionState>? _connSub;
+  StreamSubscription<EbikeTelemetry>? _telemetrySub;
+
+  bool _isBtConnected = false;
   bool _isLocked = true;
   bool _lightsOn = false;
-  String _selectedMode = 'Eco';
-  final int _batteryLevel = 84;
-  final int _rangeKm = 68;
+  String _selectedMode = 'Sport';
+  int _batteryLevel = 84;
+  int _rangeKm = 68;
+  double _currentSpeed = 0.0;
 
   final List<Map<String, dynamic>> _rideModes = [
     {'name': 'Eco', 'icon': Icons.eco, 'color': Colors.green},
@@ -49,14 +59,77 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _isBtConnected = _bt.isConnected;
+
+    // Listen to Bluetooth connection state
+    _connSub = _bt.connectionStateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isBtConnected = (state == BluetoothConnectionState.connected);
+        });
+      }
+    });
+
+    // Listen to real-time telemetry from Raspberry Pi 4B
+    _telemetrySub = _bt.telemetryStream.listen((data) {
+      if (mounted) {
+        setState(() {
+          _currentSpeed = data.speed;
+          _batteryLevel = data.battery;
+          _rangeKm = data.range;
+          _isLocked = data.locked;
+          _lightsOn = (data.lights != 'none' && data.lights.isNotEmpty);
+
+          // Sync selected mode with bike
+          for (final m in _rideModes) {
+            if (m['name'].toString().toLowerCase() == data.mode.toLowerCase()) {
+              _selectedMode = m['name'];
+            }
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _connSub?.cancel();
+    _telemetrySub?.cancel();
+    super.dispose();
+  }
+
+  void _onModeSelected(String mode) {
+    setState(() => _selectedMode = mode);
+    if (_isBtConnected) {
+      _bt.setRideMode(mode);
+    }
+  }
+
+  void _toggleLock() {
+    final next = !_isLocked;
+    setState(() => _isLocked = next);
+    if (_isBtConnected) {
+      _bt.setLockState(next);
+    }
+  }
+
+  void _toggleLights() {
+    final next = !_lightsOn;
+    setState(() => _lightsOn = next);
+    if (_isBtConnected) {
+      _bt.setLights(next ? 'high_beam' : 'none');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const primaryColor = Color(0xFF0066FF);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF121212)
-          : const Color(0xFFF4F6F9),
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF4F6F9),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -69,6 +142,48 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
           ],
         ),
         actions: [
+          // Bluetooth Connection & Pairing Pill
+          GestureDetector(
+            onTap: () => BluetoothModal.show(context),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _isBtConnected
+                    ? Colors.green.withValues(alpha: 0.15)
+                    : primaryColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _isBtConnected
+                      ? Colors.green.withValues(alpha: 0.6)
+                      : primaryColor.withValues(alpha: 0.4),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _isBtConnected
+                        ? Icons.bluetooth_connected_rounded
+                        : Icons.bluetooth_searching_rounded,
+                    color: _isBtConnected ? Colors.green : primaryColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _isBtConnected ? 'Connected' : 'Pair Pi',
+                    style: TextStyle(
+                      color: _isBtConnected ? Colors.green : primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {},
@@ -77,21 +192,21 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // E-Bike Image Showcase
-              Expanded(
-                child: Center(
-                  child: Image.asset(
-                    'assets/ebike.png',
-                    height: 180,
-                    fit: BoxFit.fitHeight,
-                  ),
+              Center(
+                child: Image.asset(
+                  'assets/ebike.png',
+                  height: 180,
+                  fit: BoxFit.fitHeight,
                 ),
               ),
+              const SizedBox(height: 12),
+
               // Hero E-Bike Battery & Status Card
               Container(
                 width: double.infinity,
@@ -202,24 +317,162 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _buildQuickStatus(
-                          '0 km/h',
-                          'Current Speed',
+                          '${_currentSpeed.toStringAsFixed(1)} km/h',
+                          'Live Speed',
                           Icons.speed,
                         ),
                         _buildQuickStatus(
-                          '$_selectedMode Mode',
+                          '$_selectedMode',
                           'Ride Mode',
                           Icons.tune,
                         ),
                         _buildQuickStatus(
-                          'Good',
-                          'Battery Health',
-                          Icons.health_and_safety,
+                          _isBtConnected ? 'Active' : 'Offline',
+                          'BT Host Link',
+                          Icons.bluetooth_connected,
                         ),
                       ],
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 18),
+
+              // Remote Controls (Lock / Unlock & Headlights)
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _toggleLock,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _isLocked
+                              ? Colors.redAccent.withValues(alpha: 0.12)
+                              : Colors.green.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: _isLocked ? Colors.redAccent : Colors.green,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                              color: _isLocked ? Colors.redAccent : Colors.green,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _isLocked ? "Bike Locked" : "Bike Unlocked",
+                              style: TextStyle(
+                                color: _isLocked ? Colors.redAccent : Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _toggleLights,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _lightsOn
+                              ? Colors.amber.withValues(alpha: 0.15)
+                              : (isDark ? const Color(0xFF242B3E) : Colors.white),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: _lightsOn ? Colors.amber : Colors.grey.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _lightsOn ? Icons.lightbulb_rounded : Icons.lightbulb_outline_rounded,
+                              color: _lightsOn ? Colors.amber : Colors.grey,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _lightsOn ? "Lights ON" : "Lights OFF",
+                              style: TextStyle(
+                                color: _lightsOn ? Colors.amber[800] : (isDark ? Colors.white70 : Colors.black87),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Ride Modes Selector
+              Text(
+                "Ride Mode",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: _rideModes.map((mode) {
+                  final isSelected = _selectedMode.toLowerCase() == mode['name'].toString().toLowerCase();
+                  final Color modeColor = mode['color'] as Color;
+
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => _onModeSelected(mode['name'] as String),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? modeColor.withValues(alpha: 0.18)
+                              : (isDark ? const Color(0xFF1E2230) : Colors.white),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected ? modeColor : Colors.grey.withValues(alpha: 0.2),
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              mode['icon'] as IconData,
+                              color: isSelected ? modeColor : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              mode['name'] as String,
+                              style: TextStyle(
+                                color: isSelected ? modeColor : (isDark ? Colors.white70 : Colors.black87),
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 20),
 
@@ -316,9 +569,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                               'Open maps, search destinations & find charging spots',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark
-                                    ? Colors.grey[400]
-                                    : Colors.grey[600],
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
                               ),
                             ),
                           ],
@@ -359,58 +610,6 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
           style: const TextStyle(color: Colors.white60, fontSize: 10),
         ),
       ],
-    );
-  }
-
-  Widget _buildStatTile(
-    BuildContext context,
-    String val,
-    String label,
-    IconData icon,
-    Color color,
-    bool isDark,
-  ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF242526) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              val,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

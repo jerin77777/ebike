@@ -6,6 +6,10 @@
 	<string>This app needs access to location to display your current position on the map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to location to display your current position on the map.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Volt E-Bike needs Bluetooth to connect and pair with the Raspberry Pi display.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Volt E-Bike needs Bluetooth to connect and pair with the Raspberry Pi display.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
