@@ -205,24 +205,36 @@ class _NeonArrowState extends State<_NeonArrow>
 
   @override
   Widget build(BuildContext context) {
-    // Size tuned to roughly match previous icon size
-    const double width = 28;
-    const double height = 24;
+    const double size = 32;
 
     return AnimatedBuilder(
       animation: _blinkAnimation,
       builder: (context, child) {
-        // Toggle between filled and outline based on animation value
-        final bool filled = widget.isActive && _blinkAnimation.value > 0.5;
+        final Color arrowColor;
+        if (widget.isActive) {
+          arrowColor = Color.lerp(
+            const Color(0xFF0F5A13),
+            const Color(0xFF14E01F),
+            _blinkAnimation.value,
+          )!;
+        } else {
+          arrowColor = Colors.white38;
+        }
 
         return SizedBox(
-          width: width,
-          height: height,
-          child: CustomPaint(
-            painter: _NeonArrowPainter(
-              isActive: widget.isActive,
-              isRight: widget.isRight,
-              filled: filled,
+          width: size,
+          height: size,
+          child: RotatedBox(
+            quarterTurns: widget.isRight ? 1 : 3,
+            child: SvgPicture.asset(
+              'assets/arrow.svg',
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              colorFilter: ColorFilter.mode(
+                arrowColor,
+                BlendMode.srcIn,
+              ),
             ),
           ),
         );
@@ -231,191 +243,6 @@ class _NeonArrowState extends State<_NeonArrow>
   }
 }
 
-enum ArrowDirection { left, right }
-
-class _NeonArrowPainter extends CustomPainter {
-  final bool isActive;
-  final bool isRight;
-  final bool filled;
-  _NeonArrowPainter({
-    required this.isActive,
-    required this.isRight,
-    this.filled = true,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
-
-    // If left direction, flip horizontally around the left edge by translating by width then scaling -1.
-    if (!isRight) {
-      canvas.save();
-      canvas.translate(w, 0);
-      canvas.scale(-1, 1);
-      // subsequent drawing uses the mirrored coordinate space
-    }
-
-    final double pad = h * 0.04;
-    final Rect bounds = Rect.fromLTWH(pad, pad, w - pad * 2, h - pad * 2);
-
-    final double bw = bounds.width;
-    final double bh = bounds.height;
-    final double bx = bounds.left;
-    final double by = bounds.top;
-
-    const Color borderColor = Color(0xFF14E01F);
-    final Color arrowFillColor = const Color(0xFF17C82A).withOpacity(0.5);
-
-    // ---------- TAIL / NECK CONFIG ----------
-    final double tailWidthFactor = 0.18;
-    final double tailWidth = bw * tailWidthFactor;
-    final double tailHeight = bh * 0.28;
-    final double tailTop = by + (bh * 0.5) - (tailHeight * 0.5);
-
-    final Rect tailRect = Rect.fromLTWH(bx, tailTop, tailWidth, tailHeight);
-    final double tailRadius = math.min(tailHeight * 0.28, tailWidth * 0.45);
-
-    final double neckFraction = 0.45;
-    final double baseOverlap = (bh * 0.006).clamp(2.0, 6.0);
-
-    final double neckX = bx + bw * neckFraction - baseOverlap * 0.5;
-
-    final double tailRight = tailRect.right;
-    final double gapToNeck = neckX - tailRight;
-    final double overlapExtra = gapToNeck > 0 ? (gapToNeck + 1.0) : baseOverlap;
-    final double tailRectOverlapWidth = tailWidth + overlapExtra;
-    final Rect tailRectOverlap = Rect.fromLTWH(
-      tailRect.left,
-      tailRect.top,
-      tailRectOverlapWidth,
-      tailRect.height,
-    );
-
-    final RRect tailRRectOverlap = RRect.fromRectAndCorners(
-      tailRectOverlap,
-      topLeft: Radius.circular(tailRadius),
-      bottomLeft: Radius.circular(tailRadius),
-      topRight: Radius.zero,
-      bottomRight: Radius.zero,
-    );
-    final Path tailOverlapPath = Path()..addRRect(tailRRectOverlap);
-
-    // ---------- HEAD ----------
-    final double tipX = bx + bw * 0.99;
-    final double headTop = by + bh * 0.12;
-    final double headBottom = by + bh * 0.88;
-    final double headMid = (headTop + headBottom) / 2;
-
-    final Offset pLeftTop = Offset(neckX, headTop);
-    final Offset pTip = Offset(tipX, headMid);
-    final Offset pLeftBottom = Offset(neckX, headBottom);
-
-    final double desiredCornerRadius = bh * 0.06;
-    final Path headRounded = _roundedPolygonPath([
-      pLeftTop,
-      pTip,
-      pLeftBottom,
-    ], desiredCornerRadius);
-
-    final Path arrow = Path.combine(
-      PathOperation.union,
-      tailOverlapPath,
-      headRounded,
-    );
-
-    // Outer glow when active
-    if (isActive) {
-      final Paint glow = Paint()
-        ..color = borderColor.withOpacity(0.55)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-      canvas.drawPath(arrow, glow);
-    }
-
-    final Paint singleBorder = Paint()
-      ..isAntiAlias = true
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = bh * 0.04
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round
-      ..color = isActive ? borderColor : Colors.white30;
-
-    if (filled) {
-      final Paint fillPaint = Paint()
-        ..isAntiAlias = true
-        ..style = PaintingStyle.fill
-        ..color = isActive ? arrowFillColor : arrowFillColor.withOpacity(0.3);
-      canvas.drawPath(arrow, fillPaint);
-    }
-
-    canvas.drawPath(arrow, singleBorder);
-
-    if (!isRight) {
-      canvas.restore();
-    }
-  }
-
-  /// Build a rounded polygon path from the given points (ordered clockwise or ccw).
-  /// radius is the requested corner radius; it will be clamped so it doesn't exceed half the adjacent edges.
-  Path _roundedPolygonPath(List<Offset> pts, double radius) {
-    final int n = pts.length;
-    if (n == 0) return Path();
-    if (n == 1)
-      return Path()..addOval(Rect.fromCircle(center: pts[0], radius: radius));
-    if (n == 2) {
-      return Path()
-        ..moveTo(pts[0].dx, pts[0].dy)
-        ..lineTo(pts[1].dx, pts[1].dy);
-    }
-
-    final Path path = Path();
-    List<Offset> tangentA = List.filled(n, Offset.zero);
-    List<Offset> tangentB = List.filled(n, Offset.zero);
-
-    for (int i = 0; i < n; i++) {
-      final Offset curr = pts[i];
-      final Offset prev = pts[(i - 1 + n) % n];
-      final Offset next = pts[(i + 1) % n];
-
-      final Offset toPrev = (prev - curr);
-      final Offset toNext = (next - curr);
-
-      final double distPrev = toPrev.distance;
-      final double distNext = toNext.distance;
-
-      final double t = math.min(radius, math.min(distPrev, distNext) * 0.5);
-
-      final Offset vPrev = distPrev == 0 ? Offset.zero : toPrev / distPrev;
-      final Offset vNext = distNext == 0 ? Offset.zero : toNext / distNext;
-
-      tangentA[i] = curr + vPrev * t;
-      tangentB[i] = curr + vNext * t;
-    }
-
-    path.moveTo(tangentB[0].dx, tangentB[0].dy);
-
-    for (int i = 0; i < n; i++) {
-      final int next = (i + 1) % n;
-      path.lineTo(tangentA[next].dx, tangentA[next].dy);
-      path.quadraticBezierTo(
-        pts[next].dx,
-        pts[next].dy,
-        tangentB[next].dx,
-        tangentB[next].dy,
-      );
-    }
-
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldRepaint(covariant _NeonArrowPainter oldDelegate) {
-    return oldDelegate.isActive != isActive ||
-        oldDelegate.isRight != isRight ||
-        oldDelegate.filled != filled;
-  }
-}
 
 class _SubsurfaceGlow extends StatelessWidget {
   const _SubsurfaceGlow();

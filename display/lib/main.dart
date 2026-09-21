@@ -1,577 +1,122 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/material.dart';
 
-import 'package:ebike/widgets.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:rive/rive.dart';
-
-import 'globals.dart';
-import 'raxda.dart';
-
-import 'package:window_manager/window_manager.dart';
-
-import 'package:shelf/shelf.dart';
-import 'package:shelf/shelf_io.dart' as io;
-import 'package:shelf_router/shelf_router.dart';
-import 'package:flutter/material.dart' hide Router;
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // ----- start local server for uploads (in-memory) -----
-  const Map<String, String> corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Filename, Accept',
-  };
-
-  Response? optionsHandler(Request request) {
-    if (request.method == 'OPTIONS') {
-      return Response.ok('', headers: corsHeaders);
-    }
-    return null;
-  }
-
-  Response addCorsHeaders(Response response) =>
-      response.change(headers: {...response.headers, ...corsHeaders});
-
-  final corsMiddleware = createMiddleware(
-    requestHandler: optionsHandler,
-    responseHandler: addCorsHeaders,
-  );
-
-  final router = Router()..post('/upload', (Request req) => handleUpload(req));
-
-  final handler = Pipeline()
-      .addMiddleware(logRequests())
-      .addMiddleware(corsMiddleware)
-      .addHandler(router);
-
-  final server = await io.serve(handler, InternetAddress.anyIPv4, 5000);
-  print('Server listening on http://${server.address.address}:${server.port}');
-
-  // ----- start WebSocket server for streaming (binary frames) -----
-  await _startWebSocketServer(
-    address: InternetAddress.anyIPv4,
-    port: 5001,
-    path: '/ws',
-  );
-
-  // ----- initialize window manager (desktop) -----
-  await windowManager.ensureInitialized();
-  WindowOptions windowOptions = const WindowOptions(
-    titleBarStyle: TitleBarStyle.hidden,
-    size: Size(800, 480),
-    center: true,
-  );
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
-
-  listen();
-
+void main() {
   runApp(const MyApp());
 }
 
-/// ---------------------------
-/// Global in-memory image stream
-/// ---------------------------
-/// Broadcast so multiple widgets can listen if needed.
-final StreamController<Uint8List> imageStreamController =
-    StreamController<Uint8List>.broadcast();
-
-/// ---------------------------
-/// WebSocket streaming server
-/// - Accepts upgrades on /ws
-/// - Receives binary frames and forwards to imageStreamController
-/// - Broadcasts 'start'/'stop' to all clients when reverseController changes
-/// ---------------------------
-final Set<WebSocket> _wsClients = <WebSocket>{};
-bool _lastReverse = false;
-
-Future<void> _startWebSocketServer({
-  required InternetAddress address,
-  required int port,
-  String path = '/ws',
-}) async {
-  final httpServer = await HttpServer.bind(address, port);
-  print(
-    'WebSocket server listening on ws://${httpServer.address.address}:$port$path',
-  );
-
-  // Forward reverse state changes to all connected clients as 'start'/'stop'
-  reverseController.stream.listen((bool isReverse) {
-    _lastReverse = isReverse;
-    final String cmd = isReverse ? 'start' : 'stop';
-    for (final ws in _wsClients.toList()) {
-      try {
-        ws.add(cmd);
-      } catch (_) {
-        _wsClients.remove(ws);
-        try {
-          ws.close();
-        } catch (_) {}
-      }
-    }
-  });
-
-  httpServer.listen((HttpRequest request) async {
-    if (request.uri.path != path) {
-      request.response.statusCode = HttpStatus.notFound;
-      await request.response.close();
-      return;
-    }
-    try {
-      final ws = await WebSocketTransformer.upgrade(request);
-      _wsClients.add(ws);
-      // Send current reverse state to new client
-      ws.add(_lastReverse ? 'start' : 'stop');
-      ws.listen(
-        (dynamic data) {
-          // If client sends binary frames, forward to UI
-          if (data is List<int>) {
-            imageStreamController.add(Uint8List.fromList(data));
-          } else if (data is String) {
-            // Text messages can be logged or used for status
-            // No-op
-          }
-        },
-        onError: (_) {
-          _wsClients.remove(ws);
-        },
-        onDone: () {
-          _wsClients.remove(ws);
-        },
-        cancelOnError: true,
-      );
-    } catch (e) {
-      try {
-        request.response.statusCode = HttpStatus.internalServerError;
-        request.response.write('WS upgrade failed');
-        await request.response.close();
-      } catch (_) {}
-    }
-  });
-}
-
-/// ---------------------------
-/// Upload handler (in-memory)
-/// Accepts raw image bytes in the POST body (Content-Type: image/jpeg|png ...)
-/// and emits the bytes on imageStreamController. Does NOT save to disk.
-/// ---------------------------
-Future<Response> handleUpload(Request request) async {
-  print("upload handler called, method=${request.method}");
-  if (request.method != 'POST') {
-    return Response(
-      405,
-      body: jsonEncode({'error': 'Method Not Allowed'}),
-      headers: {'content-type': 'application/json'},
-    );
-  }
-
-  try {
-    // Read entire request body into memory safely (using BytesBuilder)
-    final bb = BytesBuilder(copy: false);
-    await for (final chunk in request.read()) {
-      bb.add(chunk);
-    }
-    final bytes = bb.toBytes();
-
-    if (bytes.isEmpty) {
-      return Response(
-        400,
-        body: jsonEncode({'status': 'error', 'message': 'Empty body'}),
-        headers: {'content-type': 'application/json'},
-      );
-    }
-
-    // Optionally you can inspect Content-Type if you want to validate image type:
-    final contentType =
-        request.headers['content-type'] ?? 'application/octet-stream';
-    if (!(contentType.contains('jpeg') ||
-        contentType.contains('jpg') ||
-        contentType.contains('png') ||
-        contentType.contains('image/'))) {
-      // Not strictly required — we still forward bytes, but you can reject if desired.
-      // For now, we still forward.
-    }
-
-    // Emit into the in-memory stream for immediate UI display
-    imageStreamController.add(Uint8List.fromList(bytes));
-
-    final result = {
-      'status': 'ok',
-      'message': 'Image received',
-      'size': bytes.length,
-    };
-    print("Received upload (${bytes.length} bytes), emitted to image stream");
-    return Response(
-      201,
-      body: jsonEncode(result),
-      headers: {'content-type': 'application/json'},
-    );
-  } catch (e, st) {
-    print("Upload error: $e\n$st");
-    final err = {'status': 'error', 'message': e.toString()};
-    return Response.internalServerError(
-      body: jsonEncode(err),
-      headers: {'content-type': 'application/json'},
-    );
-  }
-}
-
-/// ---------------------------
-/// App
-/// ---------------------------
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Curved + Linear Tachometer',
-      debugShowCheckedModeBanner: false,
+      title: 'Flutter Demo',
       theme: ThemeData(
-        textTheme: GoogleFonts.spaceGroteskTextTheme(
-          TextTheme(
-            displayLarge: TextStyle(color: Pallet.font1),
-            displayMedium: TextStyle(color: Pallet.font1),
-            bodyMedium: TextStyle(color: Pallet.font1),
-            titleMedium: TextStyle(color: Pallet.font1),
-          ),
+        // This is the theme of your application.
+        //
+        // TRY THIS: Try running your application with "flutter run". You'll see
+        // the application has a purple toolbar. Then, without quitting the app,
+        // try changing the seedColor in the colorScheme below to Colors.green
+        // and then invoke "hot reload" (save your changes or press the "hot
+        // reload" button in a Flutter-supported IDE, or press "r" if you used
+        // the command line to start the app).
+        //
+        // Notice that the counter didn't reset back to zero; the application
+        // state is not lost during the reload. To reset the state, use hot
+        // restart instead.
+        //
+        // This works for code too, not just values: Most code changes can be
+        // tested with just a hot reload.
+        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+      ),
+      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  // This widget is the home page of your application. It is stateful, meaning
+  // that it has a State object (defined below) that contains fields that affect
+  // how it looks.
+
+  // This class is the configuration for the state. It holds the values (in this
+  // case the title) provided by the parent (in this case the App widget) and
+  // used by the build method of the State. Fields in a Widget subclass are
+  // always marked "final".
+
+  final String title;
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  int _counter = 0;
+
+  void _incrementCounter() {
+    setState(() {
+      // This call to setState tells the Flutter framework that something has
+      // changed in this State, which causes it to rerun the build method below
+      // so that the display can reflect the updated values. If we changed
+      // _counter without calling setState(), then the build method would not be
+      // called again, and so nothing would appear to happen.
+      _counter++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // This method is rerun every time setState is called, for instance as done
+    // by the _incrementCounter method above.
+    //
+    // The Flutter framework has been optimized to make rerunning build methods
+    // fast, so that you can just rebuild anything that needs updating rather
+    // than having to individually change instances of widgets.
+    return Scaffold(
+      appBar: AppBar(
+        // TRY THIS: Try changing the color here to a specific color (to
+        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
+        // change color while the other colors stay the same.
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        // Here we take the value from the MyHomePage object that was created by
+        // the App.build method, and use it to set our appbar title.
+        title: Text(widget.title),
+      ),
+      body: Center(
+        // Center is a layout widget. It takes a single child and positions it
+        // in the middle of the parent.
+        child: Column(
+          // Column is also a layout widget. It takes a list of children and
+          // arranges them vertically. By default, it sizes itself to fit its
+          // children horizontally, and tries to be as tall as its parent.
+          //
+          // Column has various properties to control how it sizes itself and
+          // how it positions its children. Here we use mainAxisAlignment to
+          // center the children vertically; the main axis here is the vertical
+          // axis because Columns are vertical (the cross axis would be
+          // horizontal).
+          //
+          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
+          // action in the IDE, or press "p" in the console), to see the
+          // wireframe for each widget.
+          mainAxisAlignment: .center,
+          children: [
+            const Text('You have pushed the button this many times:'),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+          ],
         ),
       ),
-      home: const Interface(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
+      ),
     );
-  }
-}
-
-/// ---------------------------
-/// Main Interface
-/// ---------------------------
-class Interface extends StatefulWidget {
-  const Interface({super.key});
-
-  @override
-  State<Interface> createState() => _InterfaceState();
-}
-
-class _InterfaceState extends State<Interface> {
-  File? _riveFile;
-  RiveWidgetController? _riveController;
-  NumberInput? speedInput;
-  StreamSubscription<double>? speedSub;
-  StreamSubscription<int>? speedModeSub;
-  StreamSubscription<bool>? reverseSub;
-  FocusNode focusNode = FocusNode();
-
-  // Selected tab state
-  String _selectedTab = 'SPORT';
-
-  // Show stream/fullscreen image
-  bool _showStream = false;
-
-  // Turn indicator state
-  IndicatorDirection _indicatorDirection = IndicatorDirection.none;
-  LightBeam _beam = LightBeam.low;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _loadRiveFile();
-
-    // If you have a speedController stream in globals, attach to it safely
-    try {
-      speedSub = speedController.stream.listen((value) {
-        speedInput?.value = value;
-      });
-    } catch (e) {
-      // ignore if speedController isn't present
-    }
-
-    // Listen to Raspberry Pi speed mode and reflect in ModeTabs
-    try {
-      speedModeSub = speedModeController.stream.listen((mode) {
-        String tab;
-        switch (mode) {
-          case 2:
-            tab = 'CRUISE';
-            break;
-          case 3:
-            tab = 'SPORT';
-            break;
-          case 1:
-          default:
-            tab = 'ECO';
-        }
-        if (tab != _selectedTab) {
-          setState(() => _selectedTab = tab);
-        }
-      });
-    } catch (e) {
-      // ignore if speedModeController isn't present
-    }
-
-    // Listen to Raspberry Pi reverse state and toggle stream view
-    try {
-      reverseSub = reverseController.stream.listen((bool isReverse) {
-        _setShowStream(isReverse);
-      });
-    } catch (e) {
-      // ignore if reverseController isn't present
-    }
-
-    // Listen to Raspberry Pi light beam state
-    try {
-      lightController.stream.listen((String mode) {
-        final LightBeam next = (mode == 'high_beam')
-            ? LightBeam.high
-            : LightBeam.low;
-        if (next != _beam) {
-          setState(() => _beam = next);
-        }
-      });
-    } catch (e) {
-      // ignore if lightController isn't present
-    }
-
-    // Listen to Raspberry Pi indicator state
-    try {
-      indicatorController.stream.listen((String dir) {
-        IndicatorDirection next;
-        switch (dir) {
-          case 'left':
-            next = IndicatorDirection.left;
-            break;
-          case 'right':
-            next = IndicatorDirection.right;
-            break;
-          case 'none':
-          default:
-            next = IndicatorDirection.none;
-        }
-        if (next != _indicatorDirection) {
-          setState(() => _indicatorDirection = next);
-        }
-      });
-    } catch (e) {
-      // ignore if indicatorController isn't present
-    }
-  }
-
-  Future<void> _loadRiveFile() async {
-    try {
-      final file = await File.asset(
-        'assets/speedometer.riv',
-        riveFactory: Factory.rive,
-      );
-      if (file != null && mounted) {
-        final controller = RiveWidgetController(file);
-        NumberInput? numInput;
-        for (final input in controller.stateMachine.inputs) {
-          if (input is NumberInput) {
-            numInput = input;
-            break;
-          }
-        }
-        setState(() {
-          _riveFile = file;
-          _riveController = controller;
-          speedInput = numInput;
-        });
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  @override
-  void dispose() {
-    speedSub?.cancel();
-    speedModeSub?.cancel();
-    reverseSub?.cancel();
-    speedInput?.dispose();
-    _riveController?.dispose();
-    _riveFile?.dispose();
-    super.dispose();
-  }
-
-  void _handleKeyEvent(KeyEvent event) {
-    if (event is KeyDownEvent || event is KeyRepeatEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.keyQ) {
-        exit(0);
-      }
-    }
-  }
-
-  // Public setter used by StreamViewWrapper via context.findAncestorStateOfType
-  void _setShowStream(bool show) {
-    setState(() => _showStream = show);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return KeyboardListener(
-      focusNode: focusNode,
-      onKeyEvent: _handleKeyEvent,
-      autofocus: true,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: SafeArea(
-          child: Stack(
-            children: [
-                // If stream mode is on show StreamViewWrapper full screen, otherwise show the normal UI.
-                if (_showStream)
-                  const Positioned.fill(child: StreamViewWrapper())
-                else ...[
-                  Center(
-                    child: SizedBox(
-                      width: 700,
-                      height: 700,
-                      child: _riveController != null
-                          ? RiveWidget(
-                              controller: _riveController!,
-                              fit: Fit.cover,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
-                  ModeTabs(
-                    selectedTab: _selectedTab,
-                    onTabChanged: (tab) => setState(() => _selectedTab = tab),
-                  ),
-                  const Positioned(top: 8, left: 8, child: TimeWidget()),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: BatteryWidget(
-                      initialPercent: 87,
-                      updateInterval: const Duration(seconds: 5),
-                      onChanged: (p) {},
-                    ),
-                  ),
-                  // Removed separate BeamIndicator; now shown in TurnIndicatorBar
-                ],
-                // Indicator bar overlays at the very bottom regardless of mode
-                const Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SizedBox.shrink(),
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: TurnIndicatorBar(
-                    direction: _indicatorDirection,
-                    beam: _beam,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-    );
-  }
-}
-
-/// ---------------------------
-/// StreamViewWrapper (in-memory)
-/// Listens to imageStreamController and shows the latest bytes via Image.memory.
-/// ---------------------------
-class StreamViewWrapper extends StatefulWidget {
-  const StreamViewWrapper({super.key});
-
-  @override
-  State<StreamViewWrapper> createState() => _StreamViewWrapperState();
-}
-
-class _StreamViewWrapperState extends State<StreamViewWrapper> {
-  Uint8List? _latestBytes;
-  StreamSubscription<Uint8List>? _sub;
-
-  @override
-  void initState() {
-    super.initState();
-    // Subscribe to the global image stream:
-    _sub = imageStreamController.stream.listen(
-      (bytes) {
-        // Update UI immediately when bytes arrive
-        setState(() {
-          _latestBytes = bytes;
-        });
-      },
-      onError: (e) {
-        // ignore
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-          Positioned.fill(
-            child: _latestBytes != null
-                ? Image.memory(
-                    _latestBytes!,
-                    fit: BoxFit.cover,
-                    gaplessPlayback:
-                        true, // helps avoid flicker when bytes update quickly
-                  )
-                : Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.photo, size: 96, color: Colors.white24),
-                          SizedBox(height: 12),
-                          Text(
-                            'Waiting for image stream...',
-                            style: TextStyle(color: Colors.white38),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-          ),
-
-          // Close button
-          Positioned(
-            top: 12,
-            left: 12,
-            child: SafeArea(
-              minimum: const EdgeInsets.all(4),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black54,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-                onPressed: () {
-                  final state = context
-                      .findAncestorStateOfType<_InterfaceState>();
-                  state?._setShowStream(false);
-                },
-                child: const Text('Close', style: TextStyle(color: Colors.white)),
-              ),
-            ),
-          ),
-        ],
-      );
   }
 }

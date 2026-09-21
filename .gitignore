@@ -1,0 +1,17 @@
+# Ignore build directories across all projects
+build/
+**/build/
+.dart_tool/
+**/.dart_tool/
+.pub/
+**/.pub/
+.pub-cache/
+**/.pub-cache/
+
+# Python cache
+*.pyc
+__pycache__/
+
+# OS files
+.DS_Store
+Thumbs.db

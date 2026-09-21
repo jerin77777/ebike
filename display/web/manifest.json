@@ -1,6 +1,6 @@
 {
-    "name": "ebike",
-    "short_name": "ebike",
+    "name": "display",
+    "short_name": "display",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
