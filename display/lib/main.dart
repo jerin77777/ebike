@@ -337,6 +337,8 @@ class _InterfaceState extends State<Interface> {
 
   // Show stream/fullscreen image
   bool _showStream = false;
+  StreamSubscription<Uint8List>? imageStreamSub;
+  Timer? _streamAutoHideTimer;
 
   // Turn indicator state
   IndicatorDirection _indicatorDirection = IndicatorDirection.none;
@@ -428,6 +430,23 @@ class _InterfaceState extends State<Interface> {
     } catch (e) {
       // ignore if indicatorController isn't present
     }
+
+    // Listen to incoming camera stream frames (e.g. proximity <50cm trigger)
+    try {
+      imageStreamSub = imageStreamController.stream.listen((_) {
+        if (!_showStream) {
+          _setShowStream(true);
+        }
+        _streamAutoHideTimer?.cancel();
+        _streamAutoHideTimer = Timer(const Duration(milliseconds: 2000), () {
+          if (!_lastReverse && mounted) {
+            _setShowStream(false);
+          }
+        });
+      });
+    } catch (e) {
+      // ignore
+    }
   }
 
   void _onRiveInit(Artboard artboard) {
@@ -450,6 +469,8 @@ class _InterfaceState extends State<Interface> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _streamAutoHideTimer?.cancel();
+    imageStreamSub?.cancel();
     speedSub?.cancel();
     speedModeSub?.cancel();
     reverseSub?.cancel();

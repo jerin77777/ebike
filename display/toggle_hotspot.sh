@@ -32,8 +32,8 @@ if [ -f "$SCRIPT_DIR/hotspot_config.env" ]; then
     source "$SCRIPT_DIR/hotspot_config.env"
 fi
 
-HOTSPOT_SSID="${HOTSPOT_SSID:-EBike-ESP32-AP}"
-HOTSPOT_PASS="${HOTSPOT_PASS:-ebike1234}"
+HOTSPOT_SSID="${HOTSPOT_SSID:-ebike}"
+HOTSPOT_PASS="${HOTSPOT_PASS:-123}"
 HOTSPOT_IFACE="${HOTSPOT_IFACE:-wlan0}"
 CON_NAME="EBike-Hotspot"
 STATE_FILE="/tmp/ebike_hotspot_active"
