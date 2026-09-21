@@ -109,8 +109,8 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                     widget.beam == LightBeam.high
                         ? 'assets/high_beam.svg'
                         : 'assets/low_beam.svg',
-                    width: 42,
-                    height: 42,
+                    width: 48,
+                    height: 48,
                     fit: BoxFit.contain,
                     colorFilter: ColorFilter.mode(
                       widget.beam == LightBeam.high
