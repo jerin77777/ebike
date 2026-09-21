@@ -65,14 +65,17 @@ void main() async {
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
-    size: Size(1024, 680),
+    fullScreen: true,
     center: true,
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.setFullScreen(true);
     await windowManager.show();
-    await windowManager.center();
     await windowManager.focus();
   });
+
+  // Immersive full-screen UI mode (like a game screen)
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   listen();
 
@@ -565,6 +568,10 @@ class _InterfaceState extends State<Interface> {
         HostState.toggle();
       } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
         NavigationState.toggle();
+      } else if (event.logicalKey == LogicalKeyboardKey.f11) {
+        windowManager.isFullScreen().then((isFull) {
+          windowManager.setFullScreen(!isFull);
+        });
       } else if (event.logicalKey == LogicalKeyboardKey.escape) {
         if (_showMap) {
           NavigationState.closeMap();
@@ -601,14 +608,22 @@ class _InterfaceState extends State<Interface> {
                   )
                 else ...[
                   Center(
-                    child: SizedBox(
-                      width: 680,
-                      height: 680,
-                      child: RiveAnimation.asset(
-                        'assets/speedometer.riv',
-                        fit: BoxFit.cover,
-                        onInit: _onRiveInit,
-                      ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double gaugeSize =
+                            constraints.maxHeight.isFinite && constraints.maxHeight > 0
+                                ? constraints.maxHeight
+                                : 680.0;
+                        return SizedBox(
+                          width: gaugeSize,
+                          height: gaugeSize,
+                          child: RiveAnimation.asset(
+                            'assets/speedometer.riv',
+                            fit: BoxFit.cover,
+                            onInit: _onRiveInit,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   ModeTabs(
