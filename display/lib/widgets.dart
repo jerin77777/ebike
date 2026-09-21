@@ -101,45 +101,38 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                     child: const _SubsurfaceGlow(),
                   ),
 
-                // Bottom-right arrows showing direction
+                // Bottom-right icons: Beam icon on the left, indicator arrows on the right
                 Positioned(
                   right: 12,
                   bottom: 8,
-                  child: Column(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Beam icon above arrows - made bigger
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: SvgPicture.asset(
+                      // Beam icon to left of indicators
+                      SvgPicture.asset(
+                        widget.beam == LightBeam.high
+                            ? 'assets/high_beam.svg'
+                            : 'assets/low_beam.svg',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                        colorFilter: ColorFilter.mode(
                           widget.beam == LightBeam.high
-                              ? 'assets/high_beam.svg'
-                              : 'assets/low_beam.svg',
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.contain,
-                          colorFilter: ColorFilter.mode(
-                            widget.beam == LightBeam.high
-                                ? Colors.lightBlueAccent
-                                : Colors.white38,
-                            BlendMode.srcIn,
-                          ),
+                              ? Colors.lightBlueAccent
+                              : Colors.white38,
+                          BlendMode.srcIn,
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _NeonArrow(
-                            isActive: widget.direction == IndicatorDirection.left,
-                            isRight: false,
-                          ),
-                          const SizedBox(width: 6),
-                          _NeonArrow(
-                            isActive: widget.direction == IndicatorDirection.right,
-                            isRight: true,
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      _NeonArrow(
+                        isActive: widget.direction == IndicatorDirection.left,
+                        isRight: false,
+                      ),
+                      const SizedBox(width: 6),
+                      _NeonArrow(
+                        isActive: widget.direction == IndicatorDirection.right,
+                        isRight: true,
                       ),
                     ],
                   ),
