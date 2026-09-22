@@ -7,8 +7,8 @@ class Pallet {
   static Color font1 = Colors.white;
 }
 
-bool debug = true;
-bool showBattery = true;
+bool debug = false;
+bool showBattery = false;
 
 enum BtConnectionState { disconnected, advertising, connected }
 
@@ -162,12 +162,9 @@ class MapDestination {
   });
 
   bool get hasOrigin =>
-      fromLat != null &&
-      fromLon != null &&
-      (fromLat != 0.0 || fromLon != 0.0);
+      fromLat != null && fromLon != null && (fromLat != 0.0 || fromLon != 0.0);
 
-  LatLng? get originLatLng =>
-      hasOrigin ? LatLng(fromLat!, fromLon!) : null;
+  LatLng? get originLatLng => hasOrigin ? LatLng(fromLat!, fromLon!) : null;
 
   LatLng get destLatLng => LatLng(lat, lon);
 
@@ -213,7 +210,10 @@ class MapDestination {
     }
 
     // If no intermediate route points provided, draw direct line if origin exists
-    if (points.isEmpty && fLat != null && fLon != null && (fLat != 0.0 || fLon != 0.0)) {
+    if (points.isEmpty &&
+        fLat != null &&
+        fLon != null &&
+        (fLat != 0.0 || fLon != 0.0)) {
       points = [LatLng(fLat, fLon), LatLng(dLat, dLon)];
     }
 
