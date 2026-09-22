@@ -176,16 +176,28 @@ class EbikeBluetoothService {
         }
       });
 
-      // Connect with autoConnect enabled for resilient pairing
-      await device.connect(
-        timeout: const Duration(seconds: 15),
-        autoConnect: false,
-      );
+      // Connect with fallback retry for Android GATT 147 / timeout errors
+      try {
+        await device.connect(
+          timeout: const Duration(seconds: 6),
+          autoConnect: false,
+        );
+      } catch (e) {
+        debugPrint("Direct connect timed out ($e), retrying with autoConnect...");
+        await device.connect(
+          timeout: const Duration(seconds: 12),
+          autoConnect: true,
+        );
+      }
 
-      // Attempt pairing/bonding on Android if supported
+      // Attempt pairing/bonding on Android only if not already bonded
       try {
         if (defaultTargetPlatform == TargetPlatform.android) {
-          await device.createBond();
+          final bondedList = await FlutterBluePlus.bondedDevices;
+          final isAlreadyBonded = bondedList.any((d) => d.remoteId == device.remoteId);
+          if (!isAlreadyBonded) {
+            await device.createBond();
+          }
         }
       } catch (e) {
         debugPrint("Bonding notice: $e");

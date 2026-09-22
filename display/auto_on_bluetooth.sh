@@ -63,6 +63,13 @@ if command -v hciconfig >/dev/null 2>&1; then
     hciconfig hci0 up || true
 fi
 
+if command -v btmgmt >/dev/null 2>&1; then
+    btmgmt --index 0 power on || true
+    btmgmt --index 0 le on || true
+    btmgmt --index 0 connectable on || true
+    btmgmt --index 0 advertising on || true
+fi
+
 bluetoothctl power on || true
 # 300s (5 min) pairing window on boot avoids the BlueZ "discoverable-timeout 0 not recommended" warning.
 # Note: Paired phones reconnect anytime even when discoverable mode times out.
@@ -73,14 +80,27 @@ bluetoothctl system-alias "Volt-EBike-RPI4" || true
 
 echo "=== [4/4] Starting E-Bike BLE GATT Host Daemon ==="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Verify Python requirements
+if ! python3 -c "import dbus, gi" >/dev/null 2>&1; then
+    echo "[!] Installing missing Python D-Bus & GObject libraries..."
+    apt-get update && apt-get install -y python3-dbus python3-gi || true
+fi
+
+if ! python3 -c "import websockets" >/dev/null 2>&1; then
+    echo "[!] Installing python websockets library..."
+    pip3 install websockets 2>/dev/null || apt-get install -y python3-websockets 2>/dev/null || true
+fi
+
 if ! pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
     echo "[*] Launching E-Bike BLE GATT Host Daemon in background..."
     nohup python3 "$SCRIPT_DIR/ebike_bluetooth_host.py" > /tmp/ebike_ble.log 2>&1 &
-    sleep 1
+    sleep 2
     if pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
         echo "[✓] BLE GATT Host Daemon active"
     else
-        echo "[!] Notice: check /tmp/ebike_ble.log if BLE daemon failed to start."
+        echo "[ERROR] BLE Host Daemon failed to start. Log output:"
+        cat /tmp/ebike_ble.log 2>/dev/null || true
     fi
 else
     echo "[✓] BLE GATT Host Daemon is already running."
