@@ -18,11 +18,51 @@ class BluetoothState {
   static BtConnectionState currentStatus = BtConnectionState.disconnected;
   static String? connectedDevice;
 
+  static Timer? _pollTimer;
+
   static void update(BtConnectionState status, [String? device]) {
     currentStatus = status;
     connectedDevice = device;
     statusController.add(status);
     deviceNameController.add(device);
+  }
+
+  /// Periodically polls BlueZ for any connected phone on Linux/Raspberry Pi
+  static void startMonitoring() {
+    if (!Platform.isLinux) return;
+    _pollTimer?.cancel();
+    _checkSystemBt();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkSystemBt());
+  }
+
+  static Future<void> _checkSystemBt() async {
+    try {
+      final res = await Process.run('bluetoothctl', ['devices', 'Connected']);
+      final out = res.stdout.toString().trim();
+      if (out.isNotEmpty) {
+        // Output format: "Device XX:XX:XX:XX:XX:XX Name Of Device"
+        final lines = out.split('\n');
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (trimmed.startsWith('Device ')) {
+            final parts = trimmed.split(' ');
+            String phoneName = 'Phone';
+            if (parts.length >= 3) {
+              phoneName = parts.sublist(2).join(' ');
+            }
+            if (currentStatus != BtConnectionState.connected || connectedDevice != phoneName) {
+              update(BtConnectionState.connected, phoneName);
+            }
+            return;
+          }
+        }
+      } else {
+        // If system reports no connected devices and we are currently marked connected:
+        if (currentStatus == BtConnectionState.connected) {
+          update(BtConnectionState.disconnected, null);
+        }
+      }
+    } catch (_) {}
   }
 }
 

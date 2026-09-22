@@ -526,9 +526,41 @@ def main():
         error_handler=register_ad_error_cb
     )
 
-    # Start background thread for WebSocket sync with Flutter display
-    t = threading.Thread(target=start_asyncio_thread, daemon=True)
-    t.start()
+    # Listen for any device connecting/disconnecting at the BlueZ radio layer
+    def on_device_properties_changed(interface, changed_properties, invalidated_properties, path):
+        if interface == "org.bluez.Device1":
+            if "Connected" in changed_properties:
+                is_conn = bool(changed_properties["Connected"])
+                if is_conn:
+                    try:
+                        dev_obj = bus.get_object(BLUEZ_SERVICE_NAME, path)
+                        dev_props = dbus.Interface(dev_obj, DBUS_PROP_IFACE)
+                        name = str(dev_props.Get("org.bluez.Device1", "Alias"))
+                    except Exception:
+                        name = "Phone"
+                    print(f"[BLE Host] Device connected: {name} ({path})")
+                    bike_state["connected_phone"] = name
+                    ws_outgoing_queue.append(json.dumps({
+                        "type": "bluetooth_status",
+                        "status": "connected",
+                        "device_name": name
+                    }))
+                else:
+                    print(f"[BLE Host] Device disconnected: {path}")
+                    bike_state["connected_phone"] = None
+                    ws_outgoing_queue.append(json.dumps({
+                        "type": "bluetooth_status",
+                        "status": "advertising",
+                        "device_name": "Volt-EBike-RPI4"
+                    }))
+
+    bus.add_signal_receiver(
+        on_device_properties_changed,
+        dbus_interface="org.freedesktop.DBus.Properties",
+        signal_name="PropertiesChanged",
+        arg0="org.bluez.Device1",
+        path_keyword="path"
+    )
 
     print("[BLE Host] Daemon started. Press Ctrl+C to terminate.")
     try:

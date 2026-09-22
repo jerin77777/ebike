@@ -81,6 +81,8 @@ void main() async {
 
   turnOnBluetooth();
 
+  BluetoothState.startMonitoring();
+
   HostState.checkInitialStatus();
 
   runApp(const MyApp());
