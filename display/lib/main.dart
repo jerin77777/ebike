@@ -1082,6 +1082,58 @@ class _InterfaceState extends State<Interface> {
                       ),
                     ),
                   ),
+                // ---- IP Address Snackbar (press I) ----
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  left: 0,
+                  right: 0,
+                  bottom: _showIpSnackbar ? 56 : -80,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 280),
+                    opacity: _showIpSnackbar ? 1.0 : 0.0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: const Color(0xEE0B1220),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00E5FF).withValues(alpha: 0.30),
+                              blurRadius: 18,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF00E5FF),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.wifi_rounded, color: Colors.black, size: 14),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _ipSnackbarText,
+                              style: GoogleFonts.spaceGrotesk(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
