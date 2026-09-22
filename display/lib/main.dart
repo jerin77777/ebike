@@ -615,110 +615,31 @@ class _InterfaceState extends State<Interface> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // LEFT: Speedometer in a sleek rectangular box
+                        // LEFT: Speedometer moved to the left
                         Expanded(
                           flex: 5,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0C1019),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFF1E283D),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF0066FF).withValues(alpha: 0.08),
-                                  blurRadius: 18,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(19),
-                              child: Stack(
-                                children: [
-                                  // Background ambient tech glow
-                                  Positioned.fill(
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        gradient: RadialGradient(
-                                          center: Alignment.center,
-                                          radius: 0.8,
-                                          colors: [
-                                            const Color(0xFF0066FF).withValues(alpha: 0.06),
-                                            Colors.transparent,
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                          child: Center(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final double gaugeSize =
+                                    constraints.maxHeight.isFinite && constraints.maxHeight > 0
+                                        ? constraints.maxHeight
+                                        : 680.0;
+                                return SizedBox(
+                                  width: gaugeSize,
+                                  height: gaugeSize,
+                                  child: RiveAnimation.asset(
+                                    'assets/speedometer.riv',
+                                    fit: BoxFit.cover,
+                                    onInit: _onRiveInit,
                                   ),
-
-                                  // Center: Speedometer Rive Gauge
-                                  Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: AspectRatio(
-                                        aspectRatio: 1.0,
-                                        child: RiveAnimation.asset(
-                                          'assets/speedometer.riv',
-                                          fit: BoxFit.contain,
-                                          onInit: _onRiveInit,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Drive Mode indicator badge at bottom of the rectangle box
-                                  Positioned(
-                                    bottom: 12,
-                                    left: 0,
-                                    right: 0,
-                                    child: Center(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF131B2A),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: const Color(0xFF263654)),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Text(
-                                              'MODE: ',
-                                              style: TextStyle(
-                                                color: Colors.white54,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                                letterSpacing: 1,
-                                              ),
-                                            ),
-                                            Text(
-                                              _selectedTab,
-                                              style: TextStyle(
-                                                color: _selectedTab == 'SPORT'
-                                                    ? const Color(0xFFFF3B30)
-                                                    : (_selectedTab == 'CRUISE'
-                                                        ? const Color(0xFF3399FF)
-                                                        : const Color(0xFF00E676)),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w900,
-                                                letterSpacing: 1,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
                           ),
                         ),
 
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
 
                         // RIGHT: Map in a sleek rectangular box
                         Expanded(
