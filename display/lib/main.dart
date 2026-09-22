@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:rive/rive.dart' hide Image;
+import 'package:rive/rive.dart' hide Image, RadialGradient;
 
 import 'globals.dart';
 import 'raspberrypi.dart';
@@ -368,6 +368,8 @@ class _InterfaceState extends State<Interface> {
   Timer? _phoneBannerTimer;
   StreamSubscription<BtConnectionState>? _btStateSub;
 
+  double _lastSpeed = 0.0;
+
   // Turn indicator state
   IndicatorDirection _indicatorDirection = IndicatorDirection.none;
   LightBeam _beam = LightBeam.low;
@@ -380,6 +382,7 @@ class _InterfaceState extends State<Interface> {
     // If you have a speedController stream in globals, attach to it safely
     try {
       speedSub = speedController.stream.listen((value) {
+        _lastSpeed = value;
         speedInput?.value = value;
         broadcastTelemetry(speed: value);
       });
@@ -518,6 +521,9 @@ class _InterfaceState extends State<Interface> {
       for (final input in controller.inputs) {
         if (input is SMINumber) {
           speedInput = input;
+          try {
+            speedInput?.value = _lastSpeed;
+          } catch (_) {}
           break;
         }
       }
@@ -599,13 +605,211 @@ class _InterfaceState extends State<Interface> {
                 // If stream mode is on show StreamViewWrapper full screen, otherwise show map or normal UI.
                 if (_showStream)
                   const Positioned.fill(child: StreamViewWrapper())
-                else if (_showMap)
-                  Positioned.fill(
-                    child: EbikeNavigationWidget(
-                      destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
-                      onClose: () => NavigationState.closeMap(),
+                else if (_showMap) ...[
+                  // Side-by-side Split View: Speedometer on LEFT in a rectangle box, Map on RIGHT in a rectangle box
+                  Positioned(
+                    top: 48,
+                    left: 12,
+                    right: 12,
+                    bottom: 44,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // LEFT: Speedometer in a sleek rectangular box
+                        Expanded(
+                          flex: 5,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0C1019),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFF1E283D),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0066FF).withValues(alpha: 0.08),
+                                  blurRadius: 18,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(19),
+                              child: Stack(
+                                children: [
+                                  // Background ambient tech glow
+                                  Positioned.fill(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: RadialGradient(
+                                          center: Alignment.center,
+                                          radius: 0.8,
+                                          colors: [
+                                            const Color(0xFF0066FF).withValues(alpha: 0.06),
+                                            Colors.transparent,
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Center: Speedometer Rive Gauge
+                                  Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: AspectRatio(
+                                        aspectRatio: 1.0,
+                                        child: RiveAnimation.asset(
+                                          'assets/speedometer.riv',
+                                          fit: BoxFit.contain,
+                                          onInit: _onRiveInit,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Drive Mode indicator badge at bottom of the rectangle box
+                                  Positioned(
+                                    bottom: 12,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF131B2A),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: const Color(0xFF263654)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                              'MODE: ',
+                                              style: TextStyle(
+                                                color: Colors.white54,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 1,
+                                              ),
+                                            ),
+                                            Text(
+                                              _selectedTab,
+                                              style: TextStyle(
+                                                color: _selectedTab == 'SPORT'
+                                                    ? const Color(0xFFFF3B30)
+                                                    : (_selectedTab == 'CRUISE'
+                                                        ? const Color(0xFF3399FF)
+                                                        : const Color(0xFF00E676)),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 1,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        // RIGHT: Map in a sleek rectangular box
+                        Expanded(
+                          flex: 6,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0C1019),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFF1E283D),
+                                width: 1.5,
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black45,
+                                  blurRadius: 18,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(19),
+                              child: EbikeNavigationWidget(
+                                destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
+                                onClose: () => NavigationState.closeMap(),
+                                isEmbedded: true,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  )
+                  ),
+
+                  // Top Status Bar (Time, Temp, BT on left)
+                  Positioned(
+                    top: 10,
+                    left: 12,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        TimeWidget(),
+                        SizedBox(width: 16),
+                        TemperatureWidget(),
+                        SizedBox(width: 16),
+                        BluetoothStatusWidget(),
+                      ],
+                    ),
+                  ),
+
+                  // Top Status Bar (Close Map [M], Host, Smoke on right)
+                  Positioned(
+                    top: 10,
+                    right: 12,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () => NavigationState.closeMap(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF0066FF)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.dashboard_customize, color: Color(0xFF3399FF), size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Close Map [M]',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const HostIndicatorWidget(),
+                        const SizedBox(width: 10),
+                        const SmokeSensorWidget(),
+                      ],
+                    ),
+                  ),
+                ]
                 else ...[
                   Center(
                     child: LayoutBuilder(

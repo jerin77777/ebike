@@ -12,11 +12,13 @@ import 'raspberrypi.dart';
 class EbikeNavigationWidget extends StatefulWidget {
   final MapDestination destination;
   final VoidCallback onClose;
+  final bool isEmbedded;
 
   const EbikeNavigationWidget({
     super.key,
     required this.destination,
     required this.onClose,
+    this.isEmbedded = false,
   });
 
   @override
@@ -187,14 +189,17 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
 
           // 2. Top HUD Navigation Card
           Positioned(
-            top: 14,
-            left: 14,
-            right: 14,
+            top: widget.isEmbedded ? 10 : 14,
+            left: widget.isEmbedded ? 10 : 14,
+            right: widget.isEmbedded ? 10 : 14,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.isEmbedded ? 12 : 18,
+                vertical: widget.isEmbedded ? 10 : 14,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xDD0D111A),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(widget.isEmbedded ? 16 : 20),
                 border: Border.all(color: const Color(0xFF2A364F), width: 1.5),
                 boxShadow: const [
                   BoxShadow(
@@ -208,7 +213,7 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                 children: [
                   // Phone / Bluetooth Connected Icon
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(widget.isEmbedded ? 8 : 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFF0066FF).withValues(alpha: 0.15),
                       shape: BoxShape.circle,
@@ -216,13 +221,13 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                         color: const Color(0xFF0066FF).withValues(alpha: 0.5),
                       ),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.near_me_rounded,
-                      color: Color(0xFF3399FF),
-                      size: 26,
+                      color: const Color(0xFF3399FF),
+                      size: widget.isEmbedded ? 20 : 26,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  SizedBox(width: widget.isEmbedded ? 10 : 14),
 
                   // Destination Details
                   Expanded(
@@ -258,12 +263,12 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                                     children: [
                                       Icon(
                                         isSynced ? Icons.bluetooth : Icons.offline_pin_rounded,
-                                        color: isSynced ? Colors.greenAccent : const Color(0xFF00E5FF),
                                         size: 12,
+                                        color: isSynced ? Colors.greenAccent : const Color(0xFF00E5FF),
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        isSynced ? 'PHONE SYNC' : 'OFFLINE MAP • COIMBATORE',
+                                        isSynced ? 'LIVE NAV' : 'OFFLINE MAP',
                                         style: TextStyle(
                                           color: isSynced ? Colors.greenAccent : const Color(0xFF00E5FF),
                                           fontSize: 10,
@@ -304,14 +309,14 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                           widget.destination.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: widget.isEmbedded ? 15 : 18,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.3,
                           ),
                         ),
-                        if (widget.destination.address.isNotEmpty) ...[
+                        if (widget.destination.address.isNotEmpty && !widget.isEmbedded) ...[
                           const SizedBox(height: 2),
                           Text(
                             widget.destination.address,
@@ -329,80 +334,95 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                   const SizedBox(width: 12),
 
                   // Close / Dashboard Button
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white12,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: const BorderSide(color: Colors.white24),
+                  if (!widget.isEmbedded)
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white12,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: const BorderSide(color: Colors.white24),
+                        ),
+                      ),
+                      onPressed: widget.onClose,
+                      icon: const Icon(Icons.speed, size: 18, color: Colors.white70),
+                      label: const Text(
+                        'Dashboard [M]',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    )
+                  else
+                    Material(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: widget.onClose,
+                        child: const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Icon(Icons.close, size: 18, color: Colors.white),
+                        ),
                       ),
                     ),
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.speed, size: 18, color: Colors.white70),
-                    label: const Text(
-                      'Dashboard [M]',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
 
-          // 3. Floating Speedometer Mini-HUD (Bottom-Left)
-          Positioned(
-            left: 16,
-            bottom: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xDD0D111A),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFF2A364F), width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black45,
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    _currentSpeed.toStringAsFixed(0),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1,
+          // 3. Floating Speedometer Mini-HUD (Bottom-Left) - Only when full screen
+          if (!widget.isEmbedded)
+            Positioned(
+              left: 16,
+              bottom: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xDD0D111A),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF2A364F), width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'MPH',
-                    style: TextStyle(
-                      color: Color(0xFF3399FF),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      _currentSpeed.toStringAsFixed(0),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    const Text(
+                      'MPH',
+                      style: TextStyle(
+                        color: Color(0xFF3399FF),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
           // 4. Map Navigation Touch Controls (Bottom-Right)
           Positioned(
-            right: 16,
-            bottom: 16,
+            right: widget.isEmbedded ? 10 : 16,
+            bottom: widget.isEmbedded ? 10 : 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
