@@ -41,13 +41,12 @@ def download_tile(tile, output_dir, retries=3):
     # Flat filename for direct inclusion in Flutter assets/tiles/
     filename = f"{z}_{x}_{y}.png"
     filepath = os.path.join(output_dir, filename)
-    
-    if os.path.exists(filepath) and os.path.getsize(filepath) > 500:
-        return True, tile, "cached"
 
-    url = f"https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    # ESRI World Street Map (Free public GIS tiles, clean street map, zero watermarks, no API key required)
+    # Note: ESRI MapServer tile indexing is /{z}/{y}/{x}
+    url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
     headers = {
-        "User-Agent": "EBikeCoimbatoreOfflineMapDownloader/1.0 (offline-bike-display; jerin)"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     req = urllib.request.Request(url, headers=headers)
     
@@ -60,11 +59,11 @@ def download_tile(tile, output_dir, retries=3):
                         f.write(data)
                     return True, tile, "downloaded"
                 else:
-                    time.sleep(1.0)
+                    time.sleep(0.5)
         except Exception as e:
             if attempt == retries - 1:
                 return False, tile, str(e)
-            time.sleep(1.0 * (attempt + 1))
+            time.sleep(0.5 * (attempt + 1))
             
     return False, tile, "failed"
 
