@@ -556,6 +556,9 @@ class _InterfaceState extends State<Interface> {
       } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
         NavigationState.toggle();
         return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyD) {
+        setState(() => debug = !debug);
+        return true;
       } else if (event.logicalKey == LogicalKeyboardKey.escape) {
         if (_showMap) {
           NavigationState.closeMap();
@@ -574,6 +577,8 @@ class _InterfaceState extends State<Interface> {
         HostState.toggle();
       } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
         NavigationState.toggle();
+      } else if (event.logicalKey == LogicalKeyboardKey.keyD) {
+        setState(() => debug = !debug);
       } else if (event.logicalKey == LogicalKeyboardKey.f11) {
         windowManager.isFullScreen().then((isFull) {
           windowManager.setFullScreen(!isFull);
@@ -723,8 +728,10 @@ class _InterfaceState extends State<Interface> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        const HostIndicatorWidget(),
+                        if (debug) ...[
+                          const SizedBox(width: 10),
+                          const HostIndicatorWidget(),
+                        ],
                         const SizedBox(width: 10),
                         const SmokeSensorWidget(),
                       ],
@@ -775,37 +782,39 @@ class _InterfaceState extends State<Interface> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        GestureDetector(
-                          onTap: () => NavigationState.openMap(
-                            NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0066FF).withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF0066FF)),
+                        if (debug) ...[
+                          GestureDetector(
+                            onTap: () => NavigationState.openMap(
+                              NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.navigation, color: Color(0xFF3399FF), size: 14),
-                                const SizedBox(width: 4),
-                                Text(
-                                  NavigationState.currentDestination?.name ?? 'Coimbatore Map [M]',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF0066FF)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.navigation, color: Color(0xFF3399FF), size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    NavigationState.currentDestination?.name ?? 'Coimbatore Map [M]',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        const HostIndicatorWidget(),
-                        const SizedBox(width: 10),
+                          const SizedBox(width: 10),
+                          const HostIndicatorWidget(),
+                          const SizedBox(width: 10),
+                        ],
                         const SmokeSensorWidget(),
                       ],
                     ),
