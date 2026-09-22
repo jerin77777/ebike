@@ -879,7 +879,7 @@ class _InterfaceState extends State<Interface> {
                     ),
                   ),
 
-                  // Top Status Bar (Time, Temp, Battery, BT on left) — shared by map & stream split-view
+                  // Top Status Bar (Time, Temp, Battery on left) — shared by map & stream split-view
                   Positioned(
                     top: 10,
                     left: 12,
@@ -893,8 +893,6 @@ class _InterfaceState extends State<Interface> {
                           SizedBox(width: 16),
                           BatteryWidget(),
                         ],
-                        const SizedBox(width: 16),
-                        const BluetoothStatusWidget(),
                       ],
                     ),
                   ),
@@ -967,6 +965,8 @@ class _InterfaceState extends State<Interface> {
                           const HostIndicatorWidget(),
                         ],
                         const SizedBox(width: 10),
+                        const BluetoothStatusWidget(),
+                        const SizedBox(width: 10),
                         const SmokeSensorWidget(),
                         if (_showPhoneConnectedBanner) ...[
                           const SizedBox(width: 10),
@@ -1016,8 +1016,6 @@ class _InterfaceState extends State<Interface> {
                           SizedBox(width: 16),
                           BatteryWidget(),
                         ],
-                        const SizedBox(width: 16),
-                        const BluetoothStatusWidget(),
                       ],
                     ),
                   ),
@@ -1060,11 +1058,9 @@ class _InterfaceState extends State<Interface> {
                           const HostIndicatorWidget(),
                           const SizedBox(width: 10),
                         ],
+                        const BluetoothStatusWidget(),
+                        const SizedBox(width: 10),
                         const SmokeSensorWidget(),
-                        if (_showPhoneConnectedBanner) ...[
-                          const SizedBox(width: 10),
-                          _PhoneConnectedBadge(name: _connectedPhoneName),
-                        ],
                       ],
                     ),
                   ),

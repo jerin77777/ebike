@@ -124,7 +124,7 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                 // Bottom-right: Turn Indicator Neon Arrows
                 Positioned(
                   right: 12,
-                  bottom: 8,
+                  bottom: 15,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -133,7 +133,7 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                         isActive: widget.direction == IndicatorDirection.left,
                         isRight: false,
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 10),
                       _NeonArrow(
                         isActive: widget.direction == IndicatorDirection.right,
                         isRight: true,
@@ -1076,15 +1076,15 @@ class _HostIndicatorWidgetState extends State<HostIndicatorWidget>
                 color: isSwitching
                     ? const Color(0xFFFFB300).withValues(alpha: 0.15)
                     : (_isActive
-                        ? activeColor.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.05)),
+                          ? activeColor.withValues(alpha: 0.15)
+                          : Colors.white.withValues(alpha: 0.05)),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: isSwitching
                       ? const Color(0xFFFFB300).withValues(alpha: 0.7)
                       : (_isActive
-                          ? activeColor.withValues(alpha: 0.7)
-                          : Colors.white.withValues(alpha: 0.15)),
+                            ? activeColor.withValues(alpha: 0.7)
+                            : Colors.white.withValues(alpha: 0.15)),
                   width: 1,
                 ),
               ),
@@ -1093,7 +1093,9 @@ class _HostIndicatorWidgetState extends State<HostIndicatorWidget>
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 4.5, vertical: 1),
+                      horizontal: 4.5,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: isSwitching
                           ? const Color(0xFFFFB300)
@@ -1116,16 +1118,14 @@ class _HostIndicatorWidgetState extends State<HostIndicatorWidget>
                     isSwitching
                         ? Icons.sync_rounded
                         : (_isActive
-                            ? Icons.wifi_tethering_rounded
-                            : Icons.wifi_tethering_off_rounded),
+                              ? Icons.wifi_tethering_rounded
+                              : Icons.wifi_tethering_off_rounded),
                     size: 14,
                     color: currentColor,
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    isSwitching
-                        ? 'SWITCHING'
-                        : (_isActive ? 'HOST' : 'NORMAL'),
+                    isSwitching ? 'SWITCHING' : (_isActive ? 'HOST' : 'NORMAL'),
                     style: GoogleFonts.spaceGrotesk(
                       color: currentColor,
                       fontSize: 11.5,
@@ -1219,7 +1219,11 @@ class _BluetoothStatusWidgetState extends State<BluetoothStatusWidget>
               ),
             ),
             const SizedBox(width: 5),
-            const Icon(Icons.smartphone_rounded, size: 16, color: Color(0xFF00E5FF)),
+            const Icon(
+              Icons.smartphone_rounded,
+              size: 16,
+              color: Color(0xFF00E5FF),
+            ),
           ],
         );
         break;
@@ -1231,7 +1235,11 @@ class _BluetoothStatusWidgetState extends State<BluetoothStatusWidget>
           builder: (context, child) {
             return Opacity(
               opacity: 0.4 + (_pulseController.value * 0.6),
-              child: const Icon(Icons.bluetooth_searching_rounded, size: 16, color: Color(0xFF2979FF)),
+              child: const Icon(
+                Icons.bluetooth_searching_rounded,
+                size: 16,
+                color: Color(0xFF2979FF),
+              ),
             );
           },
         );
@@ -1239,7 +1247,11 @@ class _BluetoothStatusWidgetState extends State<BluetoothStatusWidget>
       case BtConnectionState.disconnected:
         iconColor = Colors.white38;
         label = 'NO PHONE';
-        iconWidget = const Icon(Icons.smartphone_outlined, size: 16, color: Colors.white38);
+        iconWidget = const Icon(
+          Icons.smartphone_outlined,
+          size: 16,
+          color: Colors.white38,
+        );
     }
 
     return Container(
@@ -1280,4 +1292,3 @@ class _BluetoothStatusWidgetState extends State<BluetoothStatusWidget>
     );
   }
 }
-
