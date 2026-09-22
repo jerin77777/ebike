@@ -16,6 +16,7 @@ import json
 import time
 import asyncio
 import threading
+import urllib.request
 import dbus
 import dbus.service
 import dbus.mainloop.glib
@@ -60,6 +61,51 @@ bike_state = {
 
 ws_outgoing_queue = []
 active_telemetry_char = None
+
+
+def forward_command_to_display(cmd):
+    """Forwards a command from phone to Flutter display via WebSocket and HTTP fallback."""
+    msg = json.dumps({
+        "source": "mobile_bluetooth",
+        "command": cmd
+    })
+    ws_outgoing_queue.append(msg)
+
+    def _http_post():
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:5000/command",
+                data=msg.encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=1.5)
+        except Exception:
+            pass
+
+    threading.Thread(target=_http_post, daemon=True).start()
+
+
+def notify_bluetooth_status(status, device_name):
+    """Notifies Flutter display of phone connection state via WebSocket and HTTP fallback."""
+    msg = json.dumps({
+        "type": "bluetooth_status",
+        "status": status,
+        "device_name": device_name
+    })
+    ws_outgoing_queue.append(msg)
+
+    def _http_post():
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:5000/command",
+                data=msg.encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=1.5)
+        except Exception:
+            pass
+
+    threading.Thread(target=_http_post, daemon=True).start()
 
 
 # =============================================================
@@ -205,11 +251,7 @@ class TelemetryCharacteristic(Characteristic):
         self.notifying = True
         self.notify_telemetry()
         # Notify display that phone is connected
-        ws_outgoing_queue.append(json.dumps({
-            "type": "bluetooth_status",
-            "status": "connected",
-            "device_name": bike_state.get("connected_phone") or "Phone"
-        }))
+        notify_bluetooth_status("connected", bike_state.get("connected_phone") or "Phone")
 
     @dbus.service.method("org.bluez.GattCharacteristic1")
     def StopNotify(self):
@@ -218,11 +260,7 @@ class TelemetryCharacteristic(Characteristic):
         print("[BLE Host] Telemetry notifications stopped")
         self.notifying = False
         # Notify display that phone disconnected
-        ws_outgoing_queue.append(json.dumps({
-            "type": "bluetooth_status",
-            "status": "advertising",
-            "device_name": None
-        }))
+        notify_bluetooth_status("advertising", None)
 
     @dbus.service.signal(DBUS_PROP_IFACE, signature="sa{sv}as")
     def PropertiesChanged(self, interface, changed, invalidated):
@@ -230,7 +268,7 @@ class TelemetryCharacteristic(Characteristic):
 
 
 class ControlCharacteristic(Characteristic):
-    """Receives remote commands from the mobile app (lock, mode, lights)."""
+    """Receives remote commands from the mobile app (lock, mode, lights, navigation)."""
 
     def __init__(self, bus, index, service):
         Characteristic.__init__(
@@ -239,13 +277,28 @@ class ControlCharacteristic(Characteristic):
             ["write", "write-without-response"],
             service
         )
+        self._write_buffer = bytearray()
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
     def WriteValue(self, value, options):
         raw_bytes = bytes(value)
+        offset = 0
+        if isinstance(options, dict) and "offset" in options:
+            try:
+                offset = int(options["offset"])
+            except Exception:
+                offset = 0
+
+        if offset == 0:
+            self._write_buffer = bytearray(raw_bytes)
+        else:
+            self._write_buffer.extend(raw_bytes)
+
         try:
-            cmd_text = raw_bytes.decode("utf-8")
+            cmd_text = self._write_buffer.decode("utf-8")
             cmd = json.loads(cmd_text)
+            # Successfully parsed full JSON payload - reset buffer
+            self._write_buffer = bytearray()
             print(f"[BLE Host] Received command from mobile: {cmd}")
 
             action = cmd.get("action") or cmd.get("cmd")
@@ -255,17 +308,9 @@ class ControlCharacteristic(Characteristic):
             if action == "phone_connected":
                 phone_name = val.get("device_name", "Phone") if isinstance(val, dict) else str(val or "Phone")
                 bike_state["connected_phone"] = phone_name
-                ws_outgoing_queue.append(json.dumps({
-                    "type": "bluetooth_status",
-                    "status": "connected",
-                    "device_name": phone_name
-                }))
+                notify_bluetooth_status("connected", phone_name)
             else:
-                ws_outgoing_queue.append(json.dumps({
-                    "type": "bluetooth_status",
-                    "status": "connected",
-                    "device_name": bike_state.get("connected_phone") or "Phone"
-                }))
+                notify_bluetooth_status("connected", bike_state.get("connected_phone") or "Phone")
 
             if action == "set_mode":
                 bike_state["mode"] = str(val).upper()
@@ -274,18 +319,19 @@ class ControlCharacteristic(Characteristic):
             elif action == "set_lights":
                 bike_state["lights"] = str(val)
 
-            # Queue message to forward to Flutter display over WebSocket
-            ws_outgoing_queue.append(json.dumps({
-                "source": "mobile_bluetooth",
-                "command": cmd
-            }))
+            # Forward message to Flutter display over WebSocket & HTTP fallback
+            forward_command_to_display(cmd)
 
             # Trigger immediate telemetry notify so mobile UI confirms update
             if active_telemetry_char:
                 active_telemetry_char.notify_telemetry()
 
         except Exception as e:
-            print(f"[BLE Host] Error handling command: {e}")
+            # If JSON decode failed on a partial BLE chunk, wait for next offset write
+            if offset > 0 or len(raw_bytes) < 30:
+                pass
+            else:
+                print(f"[BLE Host] Error handling command: {e}")
 
 
 class EbikeGattService(Service):
@@ -540,19 +586,11 @@ def main():
                         name = "Phone"
                     print(f"[BLE Host] Device connected: {name} ({path})")
                     bike_state["connected_phone"] = name
-                    ws_outgoing_queue.append(json.dumps({
-                        "type": "bluetooth_status",
-                        "status": "connected",
-                        "device_name": name
-                    }))
+                    notify_bluetooth_status("connected", name)
                 else:
                     print(f"[BLE Host] Device disconnected: {path}")
                     bike_state["connected_phone"] = None
-                    ws_outgoing_queue.append(json.dumps({
-                        "type": "bluetooth_status",
-                        "status": "advertising",
-                        "device_name": "Volt-EBike-RPI4"
-                    }))
+                    notify_bluetooth_status("advertising", "Volt-EBike-RPI4")
 
     bus.add_signal_receiver(
         on_device_properties_changed,
@@ -561,6 +599,11 @@ def main():
         arg0="org.bluez.Device1",
         path_keyword="path"
     )
+
+    # Start the background WebSocket synchronization client thread with Flutter display
+    ws_thread = threading.Thread(target=start_asyncio_thread, daemon=True)
+    ws_thread.start()
+    print("[BLE Host] Background display sync thread started")
 
     print("[BLE Host] Daemon started. Press Ctrl+C to terminate.")
     try:

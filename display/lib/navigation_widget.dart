@@ -32,6 +32,7 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
   late Animation<double> _pulseAnimation;
 
   StreamSubscription<double>? _speedSub;
+  StreamSubscription<MapDestination?>? _destSub;
   double _currentSpeed = 0.0;
   double _currentZoom = 15.0;
 
@@ -57,6 +58,20 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
         }
       });
     } catch (_) {}
+
+    // Subscribe to incoming destination updates from phone
+    try {
+      _destSub = NavigationState.destinationController.stream.listen((dest) {
+        if (dest != null && mounted) {
+          final newCenter = LatLng(dest.lat, dest.lon);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            try {
+              _mapController.move(newCenter, 15.0);
+            } catch (_) {}
+          });
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -71,6 +86,7 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
 
   @override
   void dispose() {
+    _destSub?.cancel();
     _speedSub?.cancel();
     _pulseController.dispose();
     _mapController.dispose();

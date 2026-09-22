@@ -203,6 +203,16 @@ class EbikeBluetoothService {
         debugPrint("Bonding notice: $e");
       }
 
+      // Request larger MTU on Android for large JSON packets (e.g. navigation destinations)
+      try {
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          final mtu = await device.requestMtu(512);
+          debugPrint("Negotiated BLE MTU: $mtu");
+        }
+      } catch (e) {
+        debugPrint("MTU request notice: $e");
+      }
+
       // Discover GATT services
       final services = await device.discoverServices();
       for (final service in services) {
@@ -284,16 +294,24 @@ class EbikeBluetoothService {
       return false;
     }
 
+    final payload = jsonEncode({
+      "action": action,
+      "val": value,
+    });
+    final bytes = utf8.encode(payload);
+
     try {
-      final payload = jsonEncode({
-        "action": action,
-        "val": value,
-      });
-      await _controlChar!.write(utf8.encode(payload), withoutResponse: false);
+      await _controlChar!.write(bytes, withoutResponse: false);
       return true;
     } catch (e) {
-      debugPrint("Failed to write control command: $e");
-      return false;
+      debugPrint("Write with response failed ($e), retrying withoutResponse: true...");
+      try {
+        await _controlChar!.write(bytes, withoutResponse: true);
+        return true;
+      } catch (e2) {
+        debugPrint("Failed to write control command: $e2");
+        return false;
+      }
     }
   }
 
@@ -326,9 +344,11 @@ class EbikeBluetoothService {
     String? distance,
     String? duration,
   }) {
+    // Keep address compact to keep BLE payload small and reliable
+    final cleanAddress = address.length > 80 ? address.substring(0, 80) : address;
     return sendControlCommand('open_map', {
       'name': name,
-      'address': address,
+      'address': cleanAddress,
       'lat': lat,
       'lon': lon,
       'dist': ?distance,

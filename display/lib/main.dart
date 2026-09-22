@@ -44,7 +44,9 @@ void main() async {
     responseHandler: addCorsHeaders,
   );
 
-  final router = Router()..post('/upload', (Request req) => handleUpload(req));
+  final router = Router()
+    ..post('/upload', (Request req) => handleUpload(req))
+    ..post('/command', (Request req) => handleCommand(req));
 
   final handler = Pipeline()
       .addMiddleware(logRequests())
@@ -192,46 +194,7 @@ Future<void> _startWebSocketServer({
             try {
               final parsed = jsonDecode(data);
               if (parsed is Map<String, dynamic>) {
-                if (parsed['type'] == 'bluetooth_status') {
-                  final statusStr = parsed['status'];
-                  final dev = parsed['device_name'] as String?;
-                  BtConnectionState st = BtConnectionState.disconnected;
-                  if (statusStr == 'advertising') {
-                    st = BtConnectionState.advertising;
-                  } else if (statusStr == 'connected') {
-                    st = BtConnectionState.connected;
-                  }
-                  BluetoothState.update(st, dev);
-                } else if (parsed['source'] == 'mobile_bluetooth' && parsed['command'] != null) {
-                  final cmd = parsed['command'];
-                  final action = cmd['action'] ?? cmd['cmd'];
-                  final val = cmd['val'] ?? cmd['value'];
-
-                  // Any command from mobile means phone is connected!
-                  final phoneName = (val is Map && val['device_name'] != null)
-                      ? val['device_name'].toString()
-                      : (BluetoothState.connectedDevice ?? 'Phone');
-                  if (BluetoothState.currentStatus != BtConnectionState.connected) {
-                    BluetoothState.update(BtConnectionState.connected, phoneName);
-                  }
-
-                  if (action == 'phone_connected' || action == 'phone_sync') {
-                    BluetoothState.update(BtConnectionState.connected, phoneName);
-                  } else if (action == 'set_mode') {
-                    int m = 1;
-                    final vStr = val.toString().toUpperCase();
-                    if (vStr == 'CRUISE' || vStr == 'CITY') {
-                      m = 2;
-                    } else if (vStr == 'SPORT' || vStr == 'TURBO') {
-                      m = 3;
-                    }
-                    speedModeController.add(m);
-                  } else if (action == 'set_lights') {
-                    lightController.add(val.toString());
-                  } else if (action == 'open_map' || action == 'navigate_to' || action == 'set_destination') {
-                    NavigationState.openMap(MapDestination.fromDynamic(val));
-                  }
-                }
+                _processIncomingCommand(parsed);
               }
             } catch (_) {}
           }
@@ -252,6 +215,85 @@ Future<void> _startWebSocketServer({
       } catch (_) {}
     }
   });
+}
+
+/// Unified processor for commands coming from mobile phone via BLE host daemon (over WS or HTTP)
+void _processIncomingCommand(Map<String, dynamic> parsed) {
+  if (parsed['type'] == 'bluetooth_status') {
+    final statusStr = parsed['status'];
+    final dev = parsed['device_name'] as String?;
+    BtConnectionState st = BtConnectionState.disconnected;
+    if (statusStr == 'advertising') {
+      st = BtConnectionState.advertising;
+    } else if (statusStr == 'connected') {
+      st = BtConnectionState.connected;
+    }
+    BluetoothState.update(st, dev);
+  } else if (parsed['source'] == 'mobile_bluetooth' && parsed['command'] != null) {
+    final cmd = parsed['command'];
+    final action = cmd['action'] ?? cmd['cmd'];
+    final val = cmd['val'] ?? cmd['value'];
+
+    // Any command from mobile means phone is connected!
+    final phoneName = (val is Map && val['device_name'] != null)
+        ? val['device_name'].toString()
+        : (BluetoothState.connectedDevice ?? 'Phone');
+    if (BluetoothState.currentStatus != BtConnectionState.connected) {
+      BluetoothState.update(BtConnectionState.connected, phoneName);
+    }
+
+    if (action == 'phone_connected' || action == 'phone_sync') {
+      BluetoothState.update(BtConnectionState.connected, phoneName);
+    } else if (action == 'set_mode') {
+      int m = 1;
+      final vStr = val.toString().toUpperCase();
+      if (vStr == 'CRUISE' || vStr == 'CITY') {
+        m = 2;
+      } else if (vStr == 'SPORT' || vStr == 'TURBO') {
+        m = 3;
+      }
+      speedModeController.add(m);
+    } else if (action == 'set_lights') {
+      lightController.add(val.toString());
+    } else if (action == 'open_map' || action == 'navigate_to' || action == 'set_destination') {
+      final dest = MapDestination.fromDynamic(val);
+      print('[E-Bike Display] Received open_map destination: ${dest.name} (${dest.lat}, ${dest.lon})');
+      NavigationState.openMap(dest);
+    }
+  }
+}
+
+/// HTTP endpoint for receiving commands from local BLE daemon or network
+Future<Response> handleCommand(Request request) async {
+  if (request.method != 'POST') {
+    return Response(
+      405,
+      body: jsonEncode({'error': 'Method Not Allowed'}),
+      headers: {'content-type': 'application/json'},
+    );
+  }
+  try {
+    final body = await request.readAsString();
+    final parsed = jsonDecode(body);
+    if (parsed is Map<String, dynamic>) {
+      _processIncomingCommand(parsed);
+      return Response.ok(
+        jsonEncode({'status': 'ok'}),
+        headers: {'content-type': 'application/json'},
+      );
+    }
+    return Response(
+      400,
+      body: jsonEncode({'error': 'Invalid JSON body'}),
+      headers: {'content-type': 'application/json'},
+    );
+  } catch (e) {
+    return Response(
+      500,
+      body: jsonEncode({'error': e.toString()}),
+      headers: {'content-type': 'application/json'},
+    );
+  }
 }
 
 /// ---------------------------
@@ -485,7 +527,12 @@ class _InterfaceState extends State<Interface> {
     try {
       _navSub = NavigationState.activeController.stream.listen((active) {
         if (mounted) {
-          setState(() => _showMap = active);
+          setState(() {
+            _showMap = active;
+            if (active) {
+              _showStream = false; // Never let camera stream obscure incoming navigation
+            }
+          });
         }
       });
     } catch (_) {}
@@ -670,6 +717,11 @@ class _InterfaceState extends State<Interface> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(19),
                               child: EbikeNavigationWidget(
+                                key: ValueKey(
+                                  '${NavigationState.currentDestination?.lat}_'
+                                  '${NavigationState.currentDestination?.lon}_'
+                                  '${NavigationState.currentDestination?.name}',
+                                ),
                                 destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
                                 onClose: () => NavigationState.closeMap(),
                                 isEmbedded: true,

@@ -229,7 +229,7 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  void _sendDestinationToEbike({
+  Future<void> _sendDestinationToEbike({
     required String name,
     required String address,
     required double lat,
@@ -237,10 +237,10 @@ class _MapScreenState extends State<MapScreen> {
     String? distance,
     String? duration,
     bool showToast = true,
-  }) {
+  }) async {
     final bt = EbikeBluetoothService.instance;
     if (bt.isConnected) {
-      bt.sendMapLocation(
+      final success = await bt.sendMapLocation(
         name: name,
         address: address,
         lat: lat,
@@ -250,21 +250,65 @@ class _MapScreenState extends State<MapScreen> {
       );
       if (showToast && mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.bluetooth_connected, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Opened "$name" on E-Bike Display!',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF0066FF),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Failed to sync location to E-Bike display over Bluetooth',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFFB00020),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } else {
+      if (showToast && mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
+            content: const Row(
               children: [
-                const Icon(Icons.bluetooth_connected, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
+                Icon(Icons.bluetooth_disabled, color: Colors.white70, size: 20),
+                SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    'Opened "$name" on E-Bike Display!',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: Text('E-Bike display is not connected via Bluetooth'),
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF0066FF),
+            backgroundColor: const Color(0xFF333333),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             duration: const Duration(seconds: 3),
