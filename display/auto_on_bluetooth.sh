@@ -123,18 +123,22 @@ if ! python3 -c "import websockets" >/dev/null 2>&1; then
     pip3 install websockets 2>/dev/null || apt-get install -y python3-websockets 2>/dev/null || true
 fi
 
-if ! pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
-    echo "[*] Launching E-Bike BLE GATT Host Daemon in background..."
-    nohup python3 "$SCRIPT_DIR/ebike_bluetooth_host.py" > /tmp/ebike_ble.log 2>&1 &
-    sleep 2
-    if pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
-        echo "[✓] BLE GATT Host Daemon active"
-    else
-        echo "[ERROR] BLE Host Daemon failed to start. Log output:"
-        cat /tmp/ebike_ble.log 2>/dev/null || true
-    fi
+echo "[*] Ensuring clean slate: terminating any previous daemon instances..."
+pkill -9 -f "ebike_bluetooth_host.py" 2>/dev/null || true
+sleep 1
+
+echo "[*] Launching E-Bike BLE GATT Host Daemon in background..."
+nohup python3 "$SCRIPT_DIR/ebike_bluetooth_host.py" > /tmp/ebike_ble.log 2>&1 &
+sleep 3
+
+if pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
+    echo "[✓] BLE GATT Host Daemon active (PID: $(pgrep -f "ebike_bluetooth_host.py" | head -n 1))"
+    echo "--- Daemon Log Output ---"
+    tail -n 8 /tmp/ebike_ble.log 2>/dev/null || true
+    echo "-------------------------"
 else
-    echo "[✓] BLE GATT Host Daemon is already running."
+    echo "[ERROR] BLE Host Daemon failed to start. Full output from /tmp/ebike_ble.log:"
+    cat /tmp/ebike_ble.log 2>/dev/null || true
 fi
 
 echo "=== Current Bluetooth Status ==="

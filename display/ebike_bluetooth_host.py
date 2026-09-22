@@ -490,12 +490,18 @@ def start_asyncio_thread():
 # Main Entry Point
 # =============================================================
 
-def find_adapter(bus):
-    remote_om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, "/"), DBUS_OM_IFACE)
-    objects = remote_om.GetManagedObjects()
-    for o, props in objects.items():
-        if GATT_MANAGER_IFACE in props.keys():
-            return o
+def find_adapter(bus, retries=15, delay=1.0):
+    for i in range(retries):
+        try:
+            remote_om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, "/"), DBUS_OM_IFACE)
+            objects = remote_om.GetManagedObjects()
+            for o, props in objects.items():
+                if GATT_MANAGER_IFACE in props.keys():
+                    return o
+        except Exception:
+            pass
+        if i < retries - 1:
+            time.sleep(delay)
     return None
 
 

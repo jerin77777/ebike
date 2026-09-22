@@ -191,39 +191,47 @@ class _BluetoothModalState extends State<BluetoothModal>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.bluetooth_searching_rounded, color: primaryColor, size: 24),
                       ),
-                      child: Icon(Icons.bluetooth_searching_rounded, color: primaryColor, size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Bluetooth Pairing",
-                          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Bluetooth Pairing",
+                              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              _bt.isConnected
+                                  ? "Connected to Host"
+                                  : (_isScanning ? "Scanning for Raspberry Pi..." : "Idle"),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _bt.isConnected
+                                    ? Colors.green
+                                    : (_isScanning ? primaryColor : Colors.grey),
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        Text(
-                          _bt.isConnected
-                              ? "Connected to Host"
-                              : (_isScanning ? "Scanning for Raspberry Pi..." : "Idle"),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _bt.isConnected
-                                ? Colors.green
-                                : (_isScanning ? primaryColor : Colors.grey),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
                 if (!_bt.isConnected)
                   IconButton(
