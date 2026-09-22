@@ -14,8 +14,8 @@
 #include <Arduino.h>
 
 // ---- Pin & timing config ----
-#define ULTRASONIC_TRIG_PIN     12      // GPIO 12 — free on AI_THINKER
-#define ULTRASONIC_ECHO_PIN     13      // GPIO 13 — free on AI_THINKER
+#define ULTRASONIC_TRIG_PIN     13      // GPIO 13 — free on AI_THINKER
+#define ULTRASONIC_ECHO_PIN     14      // GPIO 14 — free on AI_THINKER
 #define ULTRASONIC_THRESHOLD_CM 50.0f   // stream when object is closer than this
 #define ULTRASONIC_TIMEOUT_US   25000UL // ~4.25 m max range (safe timeout)
 #define ULTRASONIC_MIN_INTERVAL_MS 30   // minimum ms between reads (HC-SR04 needs ~20 ms)

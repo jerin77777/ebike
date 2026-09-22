@@ -789,10 +789,11 @@ class _InterfaceState extends State<Interface> {
         body: SafeArea(
           child: Stack(
             children: [
-                // If stream mode is on show StreamViewWrapper full screen, otherwise show map or normal UI.
-                if (_showStream)
-                  const Positioned.fill(child: StreamViewWrapper())
-                else if (_showMap) ...[
+                // Camera stream: shown in side-by-side split view (speedometer left, camera right).
+                // Map: also shown in side-by-side split view (speedometer left, map right).
+                // Stream takes priority in the right panel over the map.
+                if (_showStream || _showMap) ...[
+                  // Same split-view layout for both camera and map
                   // Side-by-side Split View: Speedometer on LEFT in a rectangle box, Map on RIGHT in a rectangle box
                   Positioned(
                     top: 48,
@@ -828,7 +829,7 @@ class _InterfaceState extends State<Interface> {
 
                         const SizedBox(width: 14),
 
-                        // RIGHT: Map in a sleek rectangular box
+                        // RIGHT: Camera feed or Map in a sleek rectangular box
                         Expanded(
                           flex: 6,
                           child: Container(
@@ -836,12 +837,16 @@ class _InterfaceState extends State<Interface> {
                               color: const Color(0xFF0C1019),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFF1E283D),
+                                color: _showStream
+                                    ? const Color(0xFF1A3050)
+                                    : const Color(0xFF1E283D),
                                 width: 1.5,
                               ),
-                              boxShadow: const [
+                              boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black45,
+                                  color: _showStream
+                                      ? const Color(0xFF00CFFF).withValues(alpha: 0.10)
+                                      : Colors.black45,
                                   blurRadius: 18,
                                   spreadRadius: 2,
                                 ),
@@ -849,17 +854,24 @@ class _InterfaceState extends State<Interface> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(19),
-                              child: EbikeNavigationWidget(
-                                key: ValueKey(
-                                  '${NavigationState.currentDestination?.lat}_'
-                                  '${NavigationState.currentDestination?.lon}_'
-                                  '${NavigationState.currentDestination?.name}_'
-                                  '${NavigationState.currentDestination?.routePoints.length}',
-                                ),
-                                destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
-                                onClose: () => NavigationState.closeMap(),
-                                isEmbedded: true,
-                              ),
+                              child: _showStream
+                                  // Camera feed in embedded mode
+                                  ? StreamViewWrapper(
+                                      embedded: true,
+                                      onClose: () => _setShowStream(false),
+                                    )
+                                  // Map
+                                  : EbikeNavigationWidget(
+                                      key: ValueKey(
+                                        '${NavigationState.currentDestination?.lat}_'
+                                        '${NavigationState.currentDestination?.lon}_'
+                                        '${NavigationState.currentDestination?.name}_'
+                                        '${NavigationState.currentDestination?.routePoints.length}',
+                                      ),
+                                      destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
+                                      onClose: () => NavigationState.closeMap(),
+                                      isEmbedded: true,
+                                    ),
                             ),
                           ),
                         ),
@@ -867,7 +879,7 @@ class _InterfaceState extends State<Interface> {
                     ),
                   ),
 
-                  // Top Status Bar (Time, Temp, Battery, BT on left)
+                  // Top Status Bar (Time, Temp, Battery, BT on left) — shared by map & stream split-view
                   Positioned(
                     top: 10,
                     left: 12,
@@ -885,39 +897,69 @@ class _InterfaceState extends State<Interface> {
                     ),
                   ),
 
-                  // Top Status Bar (Close Map [M], Host, Smoke on right)
+                  // Top Status Bar (action buttons on right) — adapts for stream vs map
                   Positioned(
                     top: 10,
                     right: 12,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        GestureDetector(
-                          onTap: () => NavigationState.closeMap(),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0066FF).withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF0066FF)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.dashboard_customize, color: Color(0xFF3399FF), size: 14),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Close Map [M]',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                        if (_showStream)
+                          // Camera: close stream button
+                          GestureDetector(
+                            onTap: () => _setShowStream(false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00CFFF).withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF00CFFF)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.videocam_off_rounded, color: Color(0xFF00CFFF), size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Close Camera',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          // Map: close map button
+                          GestureDetector(
+                            onTap: () => NavigationState.closeMap(),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF0066FF)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.dashboard_customize, color: Color(0xFF3399FF), size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Close Map [M]',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
                         if (debug) ...[
                           const SizedBox(width: 10),
                           const HostIndicatorWidget(),
@@ -1145,9 +1187,21 @@ class _InterfaceState extends State<Interface> {
 /// ---------------------------
 /// StreamViewWrapper (in-memory)
 /// Listens to imageStreamController and shows the latest bytes via Image.memory.
+/// [embedded] = true: fits inside a styled container (no top-level close button overlay).
+/// [embedded] = false (legacy): full-screen with a floating close button.
 /// ---------------------------
 class StreamViewWrapper extends StatefulWidget {
-  const StreamViewWrapper({super.key});
+  /// When true, renders as an embedded panel (no full-screen close button).
+  final bool embedded;
+
+  /// Called when the user taps the close button (only used in embedded mode).
+  final VoidCallback? onClose;
+
+  const StreamViewWrapper({
+    super.key,
+    this.embedded = false,
+    this.onClose,
+  });
 
   @override
   State<StreamViewWrapper> createState() => _StreamViewWrapperState();
@@ -1164,13 +1218,9 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
     _sub = imageStreamController.stream.listen(
       (bytes) {
         // Update UI immediately when bytes arrive
-        setState(() {
-          _latestBytes = bytes;
-        });
+        if (mounted) setState(() => _latestBytes = bytes);
       },
-      onError: (e) {
-        // ignore
-      },
+      onError: (_) {},
     );
   }
 
@@ -1182,58 +1232,100 @@ class _StreamViewWrapperState extends State<StreamViewWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-          Positioned.fill(
-            child: _latestBytes != null
-                ? Image.memory(
-                    _latestBytes!,
-                    fit: BoxFit.cover,
-                    gaplessPlayback:
-                        true, // helps avoid flicker when bytes update quickly
-                  )
-                : Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.photo, size: 96, color: Colors.white24),
-                          SizedBox(height: 12),
-                          Text(
-                            'Waiting for image stream...',
-                            style: TextStyle(color: Colors.white38),
-                          ),
-                        ],
-                      ),
+    final imageWidget = _latestBytes != null
+        ? Image.memory(
+            _latestBytes!,
+            fit: BoxFit.cover,
+            gaplessPlayback: true, // avoids flicker on rapid frame updates
+          )
+        : Container(
+            color: Colors.black,
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.videocam_rounded, size: 64, color: Colors.white24),
+                  SizedBox(height: 12),
+                  Text(
+                    'Waiting for camera feed...',
+                    style: TextStyle(color: Colors.white38, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          );
+
+    if (widget.embedded) {
+      // Embedded mode: fills the parent container, camera label overlay at top-left
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(child: imageWidget),
+
+          // Camera label badge at top-left
+          Positioned(
+            top: 10,
+            left: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFF00CFFF).withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.fiber_manual_record, color: Color(0xFFFF4444), size: 8),
+                  SizedBox(width: 5),
+                  Text(
+                    'REAR CAM',
+                    style: TextStyle(
+                      color: Color(0xFF00CFFF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
                     ),
                   ),
-          ),
-
-          // Close button
-          Positioned(
-            top: 12,
-            left: 12,
-            child: SafeArea(
-              minimum: const EdgeInsets.all(4),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black54,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-                onPressed: () {
-                  final state = context
-                      .findAncestorStateOfType<_InterfaceState>();
-                  state?._setShowStream(false);
-                },
-                child: const Text('Close', style: TextStyle(color: Colors.white)),
+                ],
               ),
             ),
           ),
         ],
       );
+    }
+
+    // Legacy full-screen mode (kept for backward compatibility)
+    return Stack(
+      children: [
+        Positioned.fill(child: imageWidget),
+
+        // Close button (floating, top-left)
+        Positioned(
+          top: 12,
+          left: 12,
+          child: SafeArea(
+            minimum: const EdgeInsets.all(4),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black54,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onPressed: () {
+                if (widget.onClose != null) {
+                  widget.onClose!();
+                } else {
+                  context.findAncestorStateOfType<_InterfaceState>()?._setShowStream(false);
+                }
+              },
+              child: const Text('Close', style: TextStyle(color: Colors.white)),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

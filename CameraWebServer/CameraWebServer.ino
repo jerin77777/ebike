@@ -13,7 +13,7 @@
 // WiFi and server info
 // --------------------
 const char *ssid = "ebike";
-const char *password = "ebike1234";
+const char *password = "";
 
 const char* dartServerHost = "10.42.0.1"; // Raspberry Pi hotspot gateway IP (AP mode via nmcli shared)
 const uint16_t dartServerWsPort = 5001;
