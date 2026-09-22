@@ -264,23 +264,18 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                             ),
                             const SizedBox(height: 4),
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
                                   _batteryLevel != null ? '$_batteryLevel%' : '--',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 40,
+                                    fontSize: 38,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                const Icon(
-                                  Icons.bolt,
-                                  color: Colors.amberAccent,
-                                  size: 28,
-                                ),
+                                const SizedBox(width: 10),
+                                _buildBatteryIndicator(_batteryLevel),
                               ],
                             ),
                           ],
@@ -318,22 +313,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    // Battery progress bar
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value: _batteryLevel != null
-                            ? (_batteryLevel! / 100.0).clamp(0.0, 1.0)
-                            : 0.0,
-                        minHeight: 10,
-                        backgroundColor: Colors.white24,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          _batteryLevel != null ? Colors.greenAccent : Colors.white12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
@@ -499,6 +479,79 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
           style: const TextStyle(color: Colors.white60, fontSize: 10),
         ),
       ],
+    );
+  }
+
+  /// Physical battery indicator widget adapted from display source
+  Widget _buildBatteryIndicator(int? percent) {
+    const double bodyWidth = 34;
+    const double bodyHeight = 18;
+    const double capWidth = 5;
+    const double capOverlap = 1.0;
+    const double innerPadding = 2.5;
+    final double fillMaxWidth = bodyWidth - innerPadding * 2;
+    final double p = (percent != null) ? (percent.clamp(0, 100) / 100.0) : 0.0;
+    final double fillWidth = p * fillMaxWidth;
+    final double totalWidth = bodyWidth + capWidth - capOverlap;
+
+    Color batteryColor;
+    if (percent == null) {
+      batteryColor = Colors.transparent;
+    } else if (percent >= 60) {
+      batteryColor = Colors.greenAccent;
+    } else if (percent >= 30) {
+      batteryColor = Colors.amberAccent;
+    } else {
+      batteryColor = Colors.redAccent;
+    }
+
+    return SizedBox(
+      width: totalWidth,
+      height: bodyHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.centerLeft,
+        children: [
+          // Battery body outline
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Container(
+              width: bodyWidth,
+              height: bodyHeight,
+              padding: const EdgeInsets.all(innerPadding),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white70, width: 1.8),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: fillWidth,
+                  height: bodyHeight - innerPadding * 2,
+                  decoration: BoxDecoration(
+                    color: batteryColor,
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Battery positive terminal / cap
+          Positioned(
+            left: bodyWidth - capOverlap,
+            top: (bodyHeight - (bodyHeight * 0.55)) / 2,
+            child: Container(
+              width: capWidth,
+              height: bodyHeight * 0.55,
+              decoration: const BoxDecoration(
+                color: Colors.white70,
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(2)),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
