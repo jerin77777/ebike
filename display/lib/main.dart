@@ -417,6 +417,11 @@ class _InterfaceState extends State<Interface> {
   bool _showPhoneConnectedBanner = false;
   String _connectedPhoneName = 'Phone';
   Timer? _phoneBannerTimer;
+
+  // IP address snackbar
+  bool _showIpSnackbar = false;
+  String _ipSnackbarText = '';
+  Timer? _ipSnackbarTimer;
   StreamSubscription<BtConnectionState>? _btStateSub;
 
   double _lastSpeed = 0.0;
@@ -661,11 +666,40 @@ class _InterfaceState extends State<Interface> {
     }
   }
 
+  /// Gathers all non-loopback IPv4 addresses and shows them in a snackbar.
+  Future<void> _showIpAddress() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+      );
+      final lines = <String>[];
+      for (final iface in interfaces) {
+        for (final addr in iface.addresses) {
+          lines.add('${iface.name}: ${addr.address}');
+        }
+      }
+      final text = lines.isEmpty ? 'No IP found' : lines.join('  |  ');
+      if (!mounted) return;
+      setState(() {
+        _ipSnackbarText = text;
+        _showIpSnackbar = true;
+      });
+      _ipSnackbarTimer?.cancel();
+      _ipSnackbarTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _showIpSnackbar = false);
+      });
+    } catch (e) {
+      debugPrint('[IP Snackbar] Error: $e');
+    }
+  }
+
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _numberResetTimer?.cancel();
     _phoneBannerTimer?.cancel();
+    _ipSnackbarTimer?.cancel();
     _btStateSub?.cancel();
     _navSub?.cancel();
     _streamAutoHideTimer?.cancel();
@@ -697,6 +731,9 @@ class _InterfaceState extends State<Interface> {
       } else if (event.logicalKey == LogicalKeyboardKey.keyD) {
         setState(() => debug = !debug);
         return true;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyI) {
+        _showIpAddress();
+        return true;
       } else if (event.logicalKey == LogicalKeyboardKey.escape) {
         if (_showMap) {
           NavigationState.closeMap();
@@ -722,6 +759,8 @@ class _InterfaceState extends State<Interface> {
         NavigationState.toggle();
       } else if (event.logicalKey == LogicalKeyboardKey.keyD) {
         setState(() => debug = !debug);
+      } else if (event.logicalKey == LogicalKeyboardKey.keyI) {
+        _showIpAddress();
       } else if (event.logicalKey == LogicalKeyboardKey.f11) {
         windowManager.isFullScreen().then((isFull) {
           windowManager.setFullScreen(!isFull);
