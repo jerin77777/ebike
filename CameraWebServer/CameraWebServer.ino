@@ -31,7 +31,7 @@ const unsigned long PROXIMITY_HOLD_MS = 1500; // Keep streaming 1.5s after range
 // ------------------------------------------------------------------------------
 // Raspberry Pi AP credentials (matches hotspot_config.env / toggle_hotspot.sh)
 const char *rpi_ssid     = "ebike";
-const char *rpi_password = "123";
+const char *rpi_password = "ebike1234";
 const char *rpi_host     = "10.42.0.1";
 const uint16_t rpi_ws_port = 5001;
 const char *rpi_ws_path    = "/ws";
@@ -69,7 +69,7 @@ float currentDistanceCm = -1.0;
 // ------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
-  Serial.setDebugOutput(false);
+  Serial.setDebugOutput(true);
   Serial.println();
   Serial.println("=========================================");
   Serial.println(" ESP32-CAM E-Bike Proximity & Stream Node");
