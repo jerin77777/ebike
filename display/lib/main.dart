@@ -129,6 +129,8 @@ void broadcastTelemetry({
   String? indicator,
   bool? reverse,
   double? temp,
+  int? battery,
+  int? range,
 }) {
   final Map<String, dynamic> data = {};
   if (speed != null) data['speed'] = speed;
@@ -137,6 +139,8 @@ void broadcastTelemetry({
   if (indicator != null) data['indicator'] = indicator;
   if (reverse != null) data['reverse'] = reverse;
   if (temp != null) data['temp'] = temp;
+  if (battery != null) data['battery'] = battery;
+  if (range != null) data['range'] = range;
   if (data.isEmpty) return;
 
   final payload = jsonEncode(data);
@@ -421,6 +425,63 @@ class _InterfaceState extends State<Interface> {
   IndicatorDirection _indicatorDirection = IndicatorDirection.none;
   LightBeam _beam = LightBeam.low;
 
+  // Keyboard 2-digit battery percentage input buffer
+  String _keyNumberBuffer = '';
+  Timer? _numberResetTimer;
+  DateTime _lastDigitTime = DateTime.fromMillisecondsSinceEpoch(0);
+
+  int? _extractDigit(KeyEvent event) {
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0) return 0;
+    if (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1) return 1;
+    if (key == LogicalKeyboardKey.digit2 || key == LogicalKeyboardKey.numpad2) return 2;
+    if (key == LogicalKeyboardKey.digit3 || key == LogicalKeyboardKey.numpad3) return 3;
+    if (key == LogicalKeyboardKey.digit4 || key == LogicalKeyboardKey.numpad4) return 4;
+    if (key == LogicalKeyboardKey.digit5 || key == LogicalKeyboardKey.numpad5) return 5;
+    if (key == LogicalKeyboardKey.digit6 || key == LogicalKeyboardKey.numpad6) return 6;
+    if (key == LogicalKeyboardKey.digit7 || key == LogicalKeyboardKey.numpad7) return 7;
+    if (key == LogicalKeyboardKey.digit8 || key == LogicalKeyboardKey.numpad8) return 8;
+    if (key == LogicalKeyboardKey.digit9 || key == LogicalKeyboardKey.numpad9) return 9;
+
+    final char = event.character;
+    if (char != null && char.length == 1 && RegExp(r'^[0-9]$').hasMatch(char)) {
+      return int.parse(char);
+    }
+    return null;
+  }
+
+  void _onDigitEntered(int digit) {
+    final now = DateTime.now();
+    // Ignore duplicate key events fired within 40ms by dual listeners
+    if (now.difference(_lastDigitTime).inMilliseconds < 40) return;
+    _lastDigitTime = now;
+
+    _keyNumberBuffer += digit.toString();
+    _numberResetTimer?.cancel();
+
+    if (_keyNumberBuffer.length >= 2) {
+      final percent = int.tryParse(_keyNumberBuffer);
+      _keyNumberBuffer = '';
+      if (percent != null) {
+        final clamped = percent.clamp(0, 100);
+        final estRange = (clamped * 0.8).round();
+        BatteryState.update(clamped);
+        broadcastTelemetry(
+          battery: clamped,
+          range: estRange,
+          temp: TemperatureState.currentTemp,
+          mode: _selectedTab,
+        );
+        debugPrint('[E-Bike Display] Battery set via keyboard: $clamped%, range: $estRange km (streaming to phone)');
+      }
+    } else {
+      // Auto-reset buffer if second digit isn't typed within 3.5s
+      _numberResetTimer = Timer(const Duration(milliseconds: 3500), () {
+        _keyNumberBuffer = '';
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -471,7 +532,12 @@ class _InterfaceState extends State<Interface> {
     // Broadcast initial state on startup so BLE daemon and phone are in sync immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final initialTemp = TemperatureState.readHardwareTemp();
-      broadcastTelemetry(mode: _selectedTab, temp: initialTemp);
+      broadcastTelemetry(
+        mode: _selectedTab,
+        temp: initialTemp,
+        battery: BatteryState.currentBattery,
+        range: (BatteryState.currentBattery * 0.8).round(),
+      );
     });
 
     // Listen to Raspberry Pi reverse state and toggle stream view
@@ -598,6 +664,7 @@ class _InterfaceState extends State<Interface> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _numberResetTimer?.cancel();
     _phoneBannerTimer?.cancel();
     _btStateSub?.cancel();
     _navSub?.cancel();
@@ -614,6 +681,11 @@ class _InterfaceState extends State<Interface> {
 
   bool _handleHardwareKey(KeyEvent event) {
     if (event is KeyDownEvent) {
+      final digit = _extractDigit(event);
+      if (digit != null) {
+        _onDigitEntered(digit);
+        return true;
+      }
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
       } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
@@ -637,6 +709,11 @@ class _InterfaceState extends State<Interface> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
+      final digit = _extractDigit(event);
+      if (digit != null) {
+        _onDigitEntered(digit);
+        return;
+      }
       if (event.logicalKey == LogicalKeyboardKey.keyQ) {
         exit(0);
       } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
@@ -750,7 +827,7 @@ class _InterfaceState extends State<Interface> {
                     ),
                   ),
 
-                  // Top Status Bar (Time, Temp, BT on left)
+                  // Top Status Bar (Time, Temp, Battery, BT on left)
                   Positioned(
                     top: 10,
                     left: 12,
@@ -760,6 +837,8 @@ class _InterfaceState extends State<Interface> {
                         TimeWidget(),
                         SizedBox(width: 16),
                         TemperatureWidget(),
+                        SizedBox(width: 16),
+                        BatteryWidget(),
                         SizedBox(width: 16),
                         BluetoothStatusWidget(),
                       ],
@@ -845,6 +924,8 @@ class _InterfaceState extends State<Interface> {
                         TimeWidget(),
                         SizedBox(width: 16),
                         TemperatureWidget(),
+                        SizedBox(width: 16),
+                        BatteryWidget(),
                         SizedBox(width: 16),
                         BluetoothStatusWidget(),
                       ],

@@ -739,29 +739,22 @@ class BatteryWidget extends StatefulWidget {
 
 class _BatteryWidgetState extends State<BatteryWidget> {
   late int _percent;
-  Timer? _timer;
-  final math.Random _rnd = math.Random();
+  StreamSubscription<int>? _sub;
 
   @override
   void initState() {
     super.initState();
-    _percent = widget.initialPercent.clamp(0, 100);
+    _percent = BatteryState.currentBattery;
 
-    _timer = Timer.periodic(widget.updateInterval, (_) {
-      setState(() {
-        int delta = _rnd.nextInt(3); // 0,1,2
-        _percent -= delta;
-        if (_percent <= 5) {
-          _percent = 100; // fake recharge
-        }
-      });
-      if (widget.onChanged != null) widget.onChanged!(_percent);
+    _sub = BatteryState.batteryController.stream.listen((val) {
+      if (mounted) setState(() => _percent = val);
+      if (widget.onChanged != null) widget.onChanged!(val);
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 

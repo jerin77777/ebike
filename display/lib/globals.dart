@@ -238,3 +238,15 @@ class TemperatureState {
     return currentTemp;
   }
 }
+
+class BatteryState {
+  static int currentBattery = 84;
+  static final StreamController<int> batteryController =
+      StreamController<int>.broadcast();
+
+  static void update(int percent) {
+    currentBattery = percent.clamp(0, 100);
+    batteryController.add(currentBattery);
+  }
+}
+
