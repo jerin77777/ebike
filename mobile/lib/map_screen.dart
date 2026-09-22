@@ -235,19 +235,33 @@ class _MapScreenState extends State<MapScreen> {
     required String address,
     required double lat,
     required double lon,
+    double? fromLat,
+    double? fromLon,
     String? distance,
     String? duration,
+    List<LatLng>? routePoints,
     bool showToast = true,
   }) async {
     final bt = EbikeBluetoothService.instance;
     if (bt.isConnected) {
+      List<List<double>>? pointsList;
+      final pointsSource = routePoints ?? (_routePoints.isNotEmpty ? _routePoints : null);
+      if (pointsSource != null && pointsSource.isNotEmpty) {
+        pointsList = pointsSource.map((p) => [p.latitude, p.longitude]).toList();
+      }
+      final originLat = fromLat ?? _userLocation?.latitude ?? _currentCenter.latitude;
+      final originLon = fromLon ?? _userLocation?.longitude ?? _currentCenter.longitude;
+
       final success = await bt.sendMapLocation(
         name: name,
         address: address,
         lat: lat,
         lon: lon,
+        fromLat: originLat,
+        fromLon: originLon,
         distance: distance,
         duration: duration,
+        routePoints: pointsList,
       );
       if (showToast && mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -467,8 +481,11 @@ class _MapScreenState extends State<MapScreen> {
           address: address,
           lat: lat,
           lon: lon,
+          fromLat: _userLocation?.latitude ?? _currentCenter.latitude,
+          fromLon: _userLocation?.longitude ?? _currentCenter.longitude,
           distance: distance,
           duration: duration,
+          routePoints: _routePoints.isNotEmpty ? _routePoints : null,
           showToast: true,
         );
       }

@@ -480,25 +480,56 @@ class EbikeBluetoothService {
     }
   }
 
-  /// Send searched map destination to paired E-Bike display
+  /// Send searched map destination and route to paired E-Bike display
   Future<bool> sendMapLocation({
     required String name,
     required String address,
     required double lat,
     required double lon,
+    double? fromLat,
+    double? fromLon,
     String? distance,
     String? duration,
+    List<List<double>>? routePoints,
   }) {
     // Keep address compact to keep BLE payload small and reliable
-    final cleanAddress = address.length > 80 ? address.substring(0, 80) : address;
-    return sendControlCommand('open_map', {
+    final cleanAddress = address.length > 60 ? address.substring(0, 60) : address;
+    final Map<String, dynamic> payload = {
       'name': name,
       'address': cleanAddress,
-      'lat': lat,
-      'lon': lon,
-      'dist': ?distance,
-      'dur': ?duration,
-    });
+      'lat': double.parse(lat.toStringAsFixed(6)),
+      'lon': double.parse(lon.toStringAsFixed(6)),
+    };
+    if (fromLat != null) payload['from_lat'] = double.parse(fromLat.toStringAsFixed(6));
+    if (fromLon != null) payload['from_lon'] = double.parse(fromLon.toStringAsFixed(6));
+    if (distance != null) payload['dist'] = distance;
+    if (duration != null) payload['dur'] = duration;
+    if (routePoints != null && routePoints.isNotEmpty) {
+      // Sample route to max ~35 points so it fits smoothly into BLE payload
+      List<List<double>> sampled = [];
+      if (routePoints.length <= 35) {
+        sampled = routePoints.map((p) => [
+          double.parse(p[0].toStringAsFixed(5)),
+          double.parse(p[1].toStringAsFixed(5)),
+        ]).toList();
+      } else {
+        final step = (routePoints.length / 30).ceil();
+        for (int i = 0; i < routePoints.length; i += step) {
+          sampled.add([
+            double.parse(routePoints[i][0].toStringAsFixed(5)),
+            double.parse(routePoints[i][1].toStringAsFixed(5)),
+          ]);
+        }
+        if (sampled.last != routePoints.last) {
+          sampled.add([
+            double.parse(routePoints.last[0].toStringAsFixed(5)),
+            double.parse(routePoints.last[1].toStringAsFixed(5)),
+          ]);
+        }
+      }
+      payload['route'] = sampled;
+    }
+    return sendControlCommand('open_map', payload);
   }
 
   /// Display live Bluetooth Logs modal dialog

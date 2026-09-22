@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 class Pallet {
   static Color font1 = Colors.white;
 }
 
 bool debug = true;
+bool showBattery = true;
 
 enum BtConnectionState { disconnected, advertising, connected }
 
@@ -32,7 +34,10 @@ class BluetoothState {
     if (!Platform.isLinux) return;
     _pollTimer?.cancel();
     _checkSystemBt();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkSystemBt());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _checkSystemBt(),
+    );
   }
 
   static Future<void> _checkSystemBt() async {
@@ -50,7 +55,8 @@ class BluetoothState {
             if (parts.length >= 3) {
               phoneName = parts.sublist(2).join(' ');
             }
-            if (currentStatus != BtConnectionState.connected || connectedDevice != phoneName) {
+            if (currentStatus != BtConnectionState.connected ||
+                connectedDevice != phoneName) {
               update(BtConnectionState.connected, phoneName);
             }
             return;
@@ -137,17 +143,33 @@ class MapDestination {
   final String address;
   final double lat;
   final double lon;
+  final double? fromLat;
+  final double? fromLon;
   final String? distance;
   final String? duration;
+  final List<LatLng> routePoints;
 
   const MapDestination({
     required this.name,
     required this.address,
     required this.lat,
     required this.lon,
+    this.fromLat,
+    this.fromLon,
     this.distance,
     this.duration,
+    this.routePoints = const [],
   });
+
+  bool get hasOrigin =>
+      fromLat != null &&
+      fromLon != null &&
+      (fromLat != 0.0 || fromLon != 0.0);
+
+  LatLng? get originLatLng =>
+      hasOrigin ? LatLng(fromLat!, fromLon!) : null;
+
+  LatLng get destLatLng => LatLng(lat, lon);
 
   factory MapDestination.fromDynamic(dynamic raw) {
     if (raw is! Map) {
@@ -159,17 +181,52 @@ class MapDestination {
       );
     }
     final map = Map<String, dynamic>.from(raw);
+    final dLat = (map['lat'] is num)
+        ? (map['lat'] as num).toDouble()
+        : double.tryParse(map['lat']?.toString() ?? '') ?? 0.0;
+    final dLon = (map['lon'] is num)
+        ? (map['lon'] as num).toDouble()
+        : double.tryParse(map['lon']?.toString() ?? '') ?? 0.0;
+
+    final fLat = (map['from_lat'] is num)
+        ? (map['from_lat'] as num).toDouble()
+        : double.tryParse(map['from_lat']?.toString() ?? '');
+    final fLon = (map['from_lon'] is num)
+        ? (map['from_lon'] as num).toDouble()
+        : double.tryParse(map['from_lon']?.toString() ?? '');
+
+    List<LatLng> points = [];
+    if (map['route'] is List) {
+      for (final item in map['route']) {
+        if (item is List && item.length >= 2) {
+          final ptLat = (item[0] is num)
+              ? (item[0] as num).toDouble()
+              : double.tryParse(item[0].toString());
+          final ptLon = (item[1] is num)
+              ? (item[1] as num).toDouble()
+              : double.tryParse(item[1].toString());
+          if (ptLat != null && ptLon != null) {
+            points.add(LatLng(ptLat, ptLon));
+          }
+        }
+      }
+    }
+
+    // If no intermediate route points provided, draw direct line if origin exists
+    if (points.isEmpty && fLat != null && fLon != null && (fLat != 0.0 || fLon != 0.0)) {
+      points = [LatLng(fLat, fLon), LatLng(dLat, dLon)];
+    }
+
     return MapDestination(
       name: map['name']?.toString() ?? 'Destination',
       address: map['address']?.toString() ?? '',
-      lat: (map['lat'] is num)
-          ? (map['lat'] as num).toDouble()
-          : double.tryParse(map['lat']?.toString() ?? '') ?? 0.0,
-      lon: (map['lon'] is num)
-          ? (map['lon'] as num).toDouble()
-          : double.tryParse(map['lon']?.toString() ?? '') ?? 0.0,
+      lat: dLat,
+      lon: dLon,
+      fromLat: fLat,
+      fromLon: fLon,
       distance: map['dist']?.toString() ?? map['distance']?.toString(),
       duration: map['dur']?.toString() ?? map['duration']?.toString(),
+      routePoints: points,
     );
   }
 }
@@ -249,4 +306,3 @@ class BatteryState {
     batteryController.add(currentBattery);
   }
 }
-

@@ -35,10 +35,12 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
   StreamSubscription<MapDestination?>? _destSub;
   double _currentSpeed = 0.0;
   double _currentZoom = 15.0;
+  late MapDestination _dest;
 
   @override
   void initState() {
     super.initState();
+    _dest = widget.destination;
     _mapController = MapController();
 
     _pulseController = AnimationController(
@@ -49,6 +51,11 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // Initial fit bounds on startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fitBounds(_dest);
+    });
 
     // Subscribe to live speed to show in the corner
     try {
@@ -63,11 +70,9 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
     try {
       _destSub = NavigationState.destinationController.stream.listen((dest) {
         if (dest != null && mounted) {
-          final newCenter = LatLng(dest.lat, dest.lon);
+          setState(() => _dest = dest);
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            try {
-              _mapController.move(newCenter, 15.0);
-            } catch (_) {}
+            _fitBounds(dest);
           });
         }
       });
@@ -78,9 +83,37 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
   void didUpdateWidget(covariant EbikeNavigationWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.destination.lat != widget.destination.lat ||
-        oldWidget.destination.lon != widget.destination.lon) {
-      final newCenter = LatLng(widget.destination.lat, widget.destination.lon);
-      _mapController.move(newCenter, 15.0);
+        oldWidget.destination.lon != widget.destination.lon ||
+        oldWidget.destination.fromLat != widget.destination.fromLat ||
+        oldWidget.destination.fromLon != widget.destination.fromLon ||
+        oldWidget.destination.routePoints != widget.destination.routePoints) {
+      _dest = widget.destination;
+      _fitBounds(_dest);
+    }
+  }
+
+  void _fitBounds(MapDestination dest) {
+    try {
+      final pts = <LatLng>[
+        if (dest.hasOrigin) dest.originLatLng!,
+        dest.destLatLng,
+        ...dest.routePoints,
+      ];
+      if (pts.length >= 2) {
+        final bounds = LatLngBounds.fromPoints(pts);
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: bounds,
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 50),
+          ),
+        );
+      } else {
+        _mapController.move(dest.destLatLng, 15.0);
+      }
+    } catch (_) {
+      try {
+        _mapController.move(dest.destLatLng, 15.0);
+      } catch (_) {}
     }
   }
 
@@ -94,8 +127,7 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
   }
 
   void _recenter() {
-    final center = LatLng(widget.destination.lat, widget.destination.lon);
-    _mapController.move(center, 15.0);
+    _fitBounds(_dest);
   }
 
   void _zoomIn() {
@@ -110,13 +142,13 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
 
   @override
   Widget build(BuildContext context) {
-    final destLatLng = LatLng(widget.destination.lat, widget.destination.lon);
+    final destLatLng = _dest.destLatLng;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Interactive Coimbatore Offline Map Layer
+          // 1. Interactive Offline Map Layer
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -149,9 +181,71 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                 },
               ),
 
-              // Destination Marker with animated pulsing ring
+              // Navigation Route Polyline Layer
+              if (_dest.routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    // Outer neon blue glow
+                    Polyline(
+                      points: _dest.routePoints,
+                      strokeWidth: 9.0,
+                      color: const Color(0x660066FF),
+                    ),
+                    // Inner sharp cyan route line
+                    Polyline(
+                      points: _dest.routePoints,
+                      strokeWidth: 5.0,
+                      color: const Color(0xFF00E5FF),
+                    ),
+                  ],
+                ),
+
+              // Origin and Destination Markers
               MarkerLayer(
                 markers: [
+                  // 1. Origin / User Current Location Marker
+                  if (_dest.hasOrigin)
+                    Marker(
+                      point: _dest.originLatLng!,
+                      width: 50,
+                      height: 50,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                            ),
+                          ),
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF0066FF),
+                              border: Border.all(color: Colors.white, width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.8),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.directions_bike_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // 2. Destination Marker with animated pulsing ring
                   Marker(
                     point: destLatLng,
                     width: 70,
@@ -255,8 +349,8 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                           children: [
                             Builder(
                               builder: (context) {
-                                final isSynced = widget.destination.name != 'Coimbatore City' &&
-                                    (widget.destination.distance != null ||
+                                final isSynced = _dest.name != 'Coimbatore City' &&
+                                    (_dest.distance != null ||
                                         BluetoothState.currentStatus == BtConnectionState.connected);
                                 return Container(
                                   padding: const EdgeInsets.symmetric(
@@ -297,10 +391,10 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                                 );
                               },
                             ),
-                            if (widget.destination.distance != null) ...[
+                            if (_dest.distance != null) ...[
                               const SizedBox(width: 8),
                               Text(
-                                widget.destination.distance!,
+                                _dest.distance!,
                                 style: const TextStyle(
                                   color: Color(0xFF33B5E5),
                                   fontSize: 13,
@@ -308,10 +402,10 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                                 ),
                               ),
                             ],
-                            if (widget.destination.duration != null) ...[
+                            if (_dest.duration != null) ...[
                               const SizedBox(width: 6),
                               Text(
-                                '• ${widget.destination.duration!}',
+                                '• ${_dest.duration!}',
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -322,7 +416,7 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          widget.destination.name,
+                          _dest.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -332,10 +426,10 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                             letterSpacing: 0.3,
                           ),
                         ),
-                        if (widget.destination.address.isNotEmpty && !widget.isEmbedded) ...[
+                        if (_dest.address.isNotEmpty && !widget.isEmbedded) ...[
                           const SizedBox(height: 2),
                           Text(
-                            widget.destination.address,
+                            _dest.address,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
