@@ -278,60 +278,78 @@ class ControlCharacteristic(Characteristic):
             service
         )
         self._write_buffer = bytearray()
+        self._last_rx = 0.0
+
+    def _execute_command(self, cmd):
+        print(f"[BLE Host] Received command from mobile: {cmd}")
+
+        action = cmd.get("action") or cmd.get("cmd")
+        val = cmd.get("val") if "val" in cmd else cmd.get("value")
+
+        # Always mark phone as connected on receiving any command
+        if action == "phone_connected":
+            phone_name = val.get("device_name", "Phone") if isinstance(val, dict) else str(val or "Phone")
+            bike_state["connected_phone"] = phone_name
+            notify_bluetooth_status("connected", phone_name)
+        else:
+            notify_bluetooth_status("connected", bike_state.get("connected_phone") or "Phone")
+
+        if action == "set_mode":
+            bike_state["mode"] = str(val).upper()
+        elif action == "set_lock":
+            bike_state["locked"] = bool(val)
+        elif action == "set_lights":
+            bike_state["lights"] = str(val)
+
+        # Forward message to Flutter display over WebSocket & HTTP fallback
+        forward_command_to_display(cmd)
+
+        # Trigger immediate telemetry notify so mobile UI confirms update
+        if active_telemetry_char:
+            active_telemetry_char.notify_telemetry()
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
     def WriteValue(self, value, options):
         raw_bytes = bytes(value)
-        offset = 0
-        if isinstance(options, dict) and "offset" in options:
-            try:
-                offset = int(options["offset"])
-            except Exception:
-                offset = 0
+        now = time.time()
 
-        if offset == 0:
-            self._write_buffer = bytearray(raw_bytes)
-        else:
-            self._write_buffer.extend(raw_bytes)
-
-        try:
-            cmd_text = self._write_buffer.decode("utf-8")
-            cmd = json.loads(cmd_text)
-            # Successfully parsed full JSON payload - reset buffer
+        # Reset buffer if last write was more than 3.0 seconds ago (stale transmission)
+        if self._write_buffer and (now - self._last_rx > 3.0):
             self._write_buffer = bytearray()
-            print(f"[BLE Host] Received command from mobile: {cmd}")
+        self._last_rx = now
 
-            action = cmd.get("action") or cmd.get("cmd")
-            val = cmd.get("val") if "val" in cmd else cmd.get("value")
+        self._write_buffer.extend(raw_bytes)
 
-            # Always mark phone as connected on receiving any command
-            if action == "phone_connected":
-                phone_name = val.get("device_name", "Phone") if isinstance(val, dict) else str(val or "Phone")
-                bike_state["connected_phone"] = phone_name
-                notify_bluetooth_status("connected", phone_name)
-            else:
-                notify_bluetooth_status("connected", bike_state.get("connected_phone") or "Phone")
+        # Check if we have complete JSON in the buffer
+        try:
+            buf_str = self._write_buffer.decode("utf-8")
+        except UnicodeDecodeError:
+            # Multi-byte UTF-8 character incomplete across chunk boundary, wait for next chunk
+            return
 
-            if action == "set_mode":
-                bike_state["mode"] = str(val).upper()
-            elif action == "set_lock":
-                bike_state["locked"] = bool(val)
-            elif action == "set_lights":
-                bike_state["lights"] = str(val)
-
-            # Forward message to Flutter display over WebSocket & HTTP fallback
-            forward_command_to_display(cmd)
-
-            # Trigger immediate telemetry notify so mobile UI confirms update
-            if active_telemetry_char:
-                active_telemetry_char.notify_telemetry()
-
-        except Exception as e:
-            # If JSON decode failed on a partial BLE chunk, wait for next offset write
-            if offset > 0 or len(raw_bytes) < 30:
-                pass
-            else:
-                print(f"[BLE Host] Error handling command: {e}")
+        # Check for newline delimiter
+        if "\n" in buf_str:
+            parts = buf_str.split("\n")
+            for line in parts[:-1]:
+                line = line.strip()
+                if line:
+                    try:
+                        cmd = json.loads(line)
+                        self._execute_command(cmd)
+                    except Exception as e:
+                        print(f"[BLE Host] Error parsing JSON line: {e}")
+            # Remaining incomplete part stays in buffer
+            self._write_buffer = bytearray(parts[-1].encode("utf-8"))
+        else:
+            # Try parsing whole buffer if it looks like complete JSON object
+            clean = buf_str.strip()
+            if clean.startswith("{") and clean.endswith("}"):
+                try:
+                    cmd = json.loads(clean)
+                    self._write_buffer = bytearray()
+                    self._execute_command(cmd)
+                except json.JSONDecodeError:
+                    pass  # Incomplete JSON (e.g. nested brackets), wait for next chunk
 
 
 class EbikeGattService(Service):

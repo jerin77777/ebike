@@ -203,6 +203,9 @@ class EbikeBluetoothService {
         debugPrint("Bonding notice: $e");
       }
 
+      // Discover GATT services first
+      await _discoverEbikeServices(device);
+
       // Request larger MTU on Android for large JSON packets (e.g. navigation destinations)
       try {
         if (defaultTargetPlatform == TargetPlatform.android) {
@@ -211,29 +214,6 @@ class EbikeBluetoothService {
         }
       } catch (e) {
         debugPrint("MTU request notice: $e");
-      }
-
-      // Discover GATT services
-      final services = await device.discoverServices();
-      for (final service in services) {
-        if (service.uuid.toString().toLowerCase() == ebikeServiceUuid.toLowerCase()) {
-          for (final char in service.characteristics) {
-            final uuidStr = char.uuid.toString().toLowerCase();
-            if (uuidStr == telemetryCharUuid.toLowerCase()) {
-              // Subscribe to live telemetry notifications
-              await char.setNotifyValue(true);
-              _telemetrySub?.cancel();
-              _telemetrySub = char.lastValueStream.listen(_onTelemetryBytesReceived);
-              // Read initial value
-              try {
-                final initial = await char.read();
-                _onTelemetryBytesReceived(initial);
-              } catch (_) {}
-            } else if (uuidStr == controlCharUuid.toLowerCase()) {
-              _controlChar = char;
-            }
-          }
-        }
       }
 
       // Send phone handshake so e-bike display immediately knows phone is connected
@@ -252,6 +232,40 @@ class EbikeBluetoothService {
     } catch (e) {
       debugPrint("Error connecting to ${device.remoteId}: $e");
       _cleanUpConnection();
+      return false;
+    }
+  }
+
+  bool _uuidEquals(Guid a, String b) {
+    return a.toString().replaceAll('-', '').toLowerCase() ==
+        b.replaceAll('-', '').toLowerCase();
+  }
+
+  /// Discover and cache E-Bike telemetry & control characteristics
+  Future<bool> _discoverEbikeServices(BluetoothDevice device) async {
+    try {
+      final services = await device.discoverServices();
+      for (final service in services) {
+        if (_uuidEquals(service.uuid, ebikeServiceUuid)) {
+          for (final char in service.characteristics) {
+            if (_uuidEquals(char.uuid, telemetryCharUuid)) {
+              try {
+                await char.setNotifyValue(true);
+                _telemetrySub?.cancel();
+                _telemetrySub = char.lastValueStream.listen(_onTelemetryBytesReceived);
+                final initial = await char.read();
+                _onTelemetryBytesReceived(initial);
+              } catch (_) {}
+            } else if (_uuidEquals(char.uuid, controlCharUuid)) {
+              _controlChar = char;
+              debugPrint("Control characteristic found & cached: ${char.uuid}");
+            }
+          }
+        }
+      }
+      return _controlChar != null;
+    } catch (e) {
+      debugPrint("Error discovering E-Bike services: $e");
       return false;
     }
   }
@@ -287,29 +301,80 @@ class EbikeBluetoothService {
     }
   }
 
-  /// Send a control command to Raspberry Pi Host (set_mode, set_lock, set_lights)
+  /// Send a control command to Raspberry Pi Host (set_mode, set_lock, set_lights, open_map)
   Future<bool> sendControlCommand(String action, dynamic value) async {
+    // 1. If control characteristic not cached, attempt discovery
     if (_controlChar == null) {
-      debugPrint("Control characteristic not available");
+      debugPrint("Control characteristic not cached, attempting discovery...");
+      if (_connectedDevice != null) {
+        await _discoverEbikeServices(_connectedDevice!);
+      } else {
+        final bonded = await getBondedDevices();
+        for (final d in bonded) {
+          if (d.isConnected) {
+            _connectedDevice = d;
+            await _discoverEbikeServices(d);
+            break;
+          }
+        }
+      }
+    }
+
+    if (_controlChar == null) {
+      debugPrint("Control characteristic still not available");
       return false;
     }
 
-    final payload = jsonEncode({
+    // 2. Format payload with trailing newline delimiter for streaming reassembly
+    final payload = '${jsonEncode({
       "action": action,
       "val": value,
-    });
+    })}\n';
     final bytes = utf8.encode(payload);
 
+    // 3. Determine safe chunk size (default 20 bytes for standard BLE ATT MTU)
+    int chunkSize = 20;
     try {
-      await _controlChar!.write(bytes, withoutResponse: false);
+      final currentMtu = _connectedDevice?.mtuNow ?? 23;
+      if (currentMtu > 25) {
+        chunkSize = (currentMtu - 5).clamp(20, 240);
+      }
+    } catch (_) {}
+
+    try {
+      if (bytes.length <= chunkSize) {
+        return await _writePacket(_controlChar!, bytes);
+      } else {
+        // Send in chunks of safe size to prevent GATT_INVALID_ATTRIBUTE_LENGTH
+        for (int i = 0; i < bytes.length; i += chunkSize) {
+          final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+          final chunk = bytes.sublist(i, end);
+          final ok = await _writePacket(_controlChar!, chunk);
+          if (!ok) {
+            debugPrint("Failed writing chunk at index $i/${bytes.length}");
+            return false;
+          }
+          // Small 20ms pacing between packets to prevent BLE buffer congestion
+          await Future.delayed(const Duration(milliseconds: 20));
+        }
+        return true;
+      }
+    } catch (e) {
+      debugPrint("sendControlCommand unexpected error: $e");
+      return false;
+    }
+  }
+
+  Future<bool> _writePacket(BluetoothCharacteristic char, List<int> chunk) async {
+    try {
+      await char.write(chunk, withoutResponse: false);
       return true;
     } catch (e) {
-      debugPrint("Write with response failed ($e), retrying withoutResponse: true...");
       try {
-        await _controlChar!.write(bytes, withoutResponse: true);
+        await char.write(chunk, withoutResponse: true);
         return true;
       } catch (e2) {
-        debugPrint("Failed to write control command: $e2");
+        debugPrint("Write chunk failed (both modes): $e2");
         return false;
       }
     }
@@ -344,13 +409,19 @@ class EbikeBluetoothService {
     String? distance,
     String? duration,
   }) {
-    // Keep address compact to keep BLE payload small and reliable
-    final cleanAddress = address.length > 80 ? address.substring(0, 80) : address;
+    // Keep name concise (max 30 chars) and address short (max 40 chars)
+    final cleanName = name.length > 30 ? name.substring(0, 30) : name;
+    final cleanAddress = address.length > 40 ? address.substring(0, 40) : address;
+
+    // Round lat/lon to 5 decimals (approx 1 meter precision)
+    final double cleanLat = double.parse(lat.toStringAsFixed(5));
+    final double cleanLon = double.parse(lon.toStringAsFixed(5));
+
     return sendControlCommand('open_map', {
-      'name': name,
+      'name': cleanName,
       'address': cleanAddress,
-      'lat': lat,
-      'lon': lon,
+      'lat': cleanLat,
+      'lon': cleanLon,
       'dist': ?distance,
       'dur': ?duration,
     });
