@@ -206,7 +206,7 @@ class _MapScreenState extends State<MapScreen> {
         );
         final response = await http.get(
           uri,
-          headers: {'User-Agent': 'EbikeApp/1.0 (contact@ebike.app)'},
+          headers: {'User-Agent': 'SmartEBikeCompanion/1.0 (contact: support@smartebike.internal)'},
         );
 
         if (response.statusCode == 200) {
@@ -316,7 +316,7 @@ class _MapScreenState extends State<MapScreen> {
       );
       final response = await http.get(
         uri,
-        headers: {'User-Agent': 'EbikeApp/1.0 (contact@ebike.app)'},
+        headers: {'User-Agent': 'SmartEBikeCompanion/1.0 (contact: support@smartebike.internal)'},
       );
 
       if (response.statusCode == 200) {
@@ -351,7 +351,7 @@ class _MapScreenState extends State<MapScreen> {
       );
       final response = await http.get(
         url,
-        headers: {'User-Agent': 'EbikeApp/1.0 (contact@ebike.app)'},
+        headers: {'User-Agent': 'SmartEBikeCompanion/1.0 (contact: support@smartebike.internal)'},
       );
 
       if (response.statusCode == 200) {
@@ -473,7 +473,7 @@ class _MapScreenState extends State<MapScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.mobile',
+                userAgentPackageName: 'com.smartebike.companion',
               ),
               // Polyline Layer for Navigation Directions Route
               if (_routePoints.isNotEmpty)
