@@ -885,14 +885,16 @@ class _InterfaceState extends State<Interface> {
                     left: 12,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        TimeWidget(),
-                        SizedBox(width: 16),
-                        TemperatureWidget(),
-                        SizedBox(width: 16),
-                        BatteryWidget(),
-                        SizedBox(width: 16),
-                        BluetoothStatusWidget(),
+                      children: [
+                        const TimeWidget(),
+                        const SizedBox(width: 16),
+                        const TemperatureWidget(),
+                        if (showBattery) ...const [
+                          SizedBox(width: 16),
+                          BatteryWidget(),
+                        ],
+                        const SizedBox(width: 16),
+                        const BluetoothStatusWidget(),
                       ],
                     ),
                   ),
@@ -966,6 +968,10 @@ class _InterfaceState extends State<Interface> {
                         ],
                         const SizedBox(width: 10),
                         const SmokeSensorWidget(),
+                        if (_showPhoneConnectedBanner) ...[
+                          const SizedBox(width: 10),
+                          _PhoneConnectedBadge(name: _connectedPhoneName),
+                        ],
                       ],
                     ),
                   ),
@@ -1002,14 +1008,16 @@ class _InterfaceState extends State<Interface> {
                     left: 12,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        TimeWidget(),
-                        SizedBox(width: 16),
-                        TemperatureWidget(),
-                        SizedBox(width: 16),
-                        BatteryWidget(),
-                        SizedBox(width: 16),
-                        BluetoothStatusWidget(),
+                      children: [
+                        const TimeWidget(),
+                        const SizedBox(width: 16),
+                        const TemperatureWidget(),
+                        if (showBattery) ...const [
+                          SizedBox(width: 16),
+                          BatteryWidget(),
+                        ],
+                        const SizedBox(width: 16),
+                        const BluetoothStatusWidget(),
                       ],
                     ),
                   ),
@@ -1053,6 +1061,10 @@ class _InterfaceState extends State<Interface> {
                           const SizedBox(width: 10),
                         ],
                         const SmokeSensorWidget(),
+                        if (_showPhoneConnectedBanner) ...[
+                          const SizedBox(width: 10),
+                          _PhoneConnectedBadge(name: _connectedPhoneName),
+                        ],
                       ],
                     ),
                   ),
@@ -1075,55 +1087,7 @@ class _InterfaceState extends State<Interface> {
                   ),
                 ),
 
-                // Animated Phone Connected Notification Banner
-                if (_showPhoneConnectedBanner)
-                  Positioned(
-                    top: 50,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xEE0B1220),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF00E676), width: 1.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF00E676).withValues(alpha: 0.35),
-                              blurRadius: 16,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF00E676),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.check, color: Colors.black, size: 14),
-                            ),
-                            const SizedBox(width: 10),
-                            const Icon(Icons.smartphone_rounded, color: Color(0xFF00E5FF), size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Phone Connected: $_connectedPhoneName',
-                              style: GoogleFonts.spaceGrotesk(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                // Phone Connected badge is now inline next to SmokeSensorWidget (see right status bars above).
                 // ---- IP Address Snackbar (press I) ----
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 320),
@@ -1180,6 +1144,59 @@ class _InterfaceState extends State<Interface> {
             ),
           ),
         ),
+    );
+  }
+}
+
+/// ---------------------------
+/// Compact phone-connected badge shown inline in the top-right status bar,
+/// to the right of SmokeSensorWidget, when a phone is connected.
+/// ---------------------------
+class _PhoneConnectedBadge extends StatelessWidget {
+  final String name;
+  const _PhoneConnectedBadge({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xEE0B1220),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00E676), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00E676).withValues(alpha: 0.25),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: Color(0xFF00E676),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          const Icon(Icons.smartphone_rounded, color: Color(0xFF00E5FF), size: 13),
+          const SizedBox(width: 5),
+          Text(
+            name,
+            style: GoogleFonts.spaceGrotesk(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
