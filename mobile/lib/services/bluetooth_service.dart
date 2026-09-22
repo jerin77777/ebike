@@ -188,7 +188,9 @@ class EbikeBluetoothService {
       // Send phone handshake so e-bike display immediately knows phone is connected
       if (_controlChar != null) {
         try {
-          final phoneName = device.platformName.isNotEmpty ? device.platformName : 'Phone';
+          final phoneName = defaultTargetPlatform == TargetPlatform.android
+              ? 'Android Phone'
+              : (defaultTargetPlatform == TargetPlatform.iOS ? 'iPhone' : 'Mobile Device');
           await sendControlCommand('phone_connected', {
             'device_name': phoneName,
           });
