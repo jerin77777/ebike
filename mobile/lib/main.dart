@@ -54,9 +54,8 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
 
   final List<Map<String, dynamic>> _rideModes = [
     {'name': 'Eco', 'icon': Icons.eco, 'color': Colors.green},
-    {'name': 'City', 'icon': Icons.location_city, 'color': Colors.blue},
+    {'name': 'Cruise', 'icon': Icons.electric_bike_rounded, 'color': Colors.blue},
     {'name': 'Sport', 'icon': Icons.flash_on, 'color': Colors.orange},
-    {'name': 'Turbo', 'icon': Icons.speed, 'color': Colors.redAccent},
   ];
 
   @override
@@ -95,12 +94,14 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
           _lightsOn = (data.lights != 'none' && data.lights.isNotEmpty);
 
           // Sync selected mode with bike
-          for (final m in _rideModes) {
-            if (m['name'].toString().toLowerCase() == data.mode.toLowerCase()) {
-              _selectedMode = m['name'];
-            }
-          }
-          if (_selectedMode == null && data.mode.isNotEmpty) {
+          final rawMode = data.mode.toUpperCase();
+          if (rawMode == 'CRUISE' || rawMode == 'CITY') {
+            _selectedMode = 'Cruise';
+          } else if (rawMode == 'SPORT' || rawMode == 'TURBO') {
+            _selectedMode = 'Sport';
+          } else if (rawMode == 'ECO') {
+            _selectedMode = 'Eco';
+          } else if (data.mode.isNotEmpty) {
             _selectedMode = data.mode;
           }
         });
@@ -118,7 +119,18 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
   void _onModeSelected(String mode) {
     setState(() => _selectedMode = mode);
     if (_isBtConnected) {
-      _bt.setRideMode(mode);
+      _bt.setRideMode(mode.toUpperCase());
+    }
+  }
+
+  void _cycleMode() {
+    final modes = ['Eco', 'Cruise', 'Sport'];
+    final current = _selectedMode ?? 'Eco';
+    final idx = modes.indexWhere((m) => m.toLowerCase() == current.toLowerCase());
+    final nextMode = modes[(idx + 1) % modes.length];
+    setState(() => _selectedMode = nextMode);
+    if (_isBtConnected) {
+      _bt.setRideMode(nextMode.toUpperCase());
     }
   }
 
@@ -324,10 +336,15 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                           'Temperature',
                           Icons.thermostat_rounded,
                         ),
-                        _buildQuickStatus(
-                          _selectedMode ?? '--',
-                          'Ride Mode',
-                          Icons.tune,
+                        GestureDetector(
+                          onTap: _isBtConnected ? _cycleMode : null,
+                          child: _buildQuickStatus(
+                            _selectedMode != null
+                                ? _selectedMode!.toUpperCase()
+                                : '--',
+                            'Ride Mode',
+                            Icons.tune,
+                          ),
                         ),
                         _buildQuickStatus(
                           _isBtConnected ? 'Active' : 'Offline',

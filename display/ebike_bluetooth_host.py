@@ -54,10 +54,17 @@ bike_state = {
     "lights": "low_beam",
     "indicator": "none",
     "reverse": False,
-    "temp": 28.5,
+    "temp": 37.0,
     "smoke": 0,
     "connected_phone": None
 }
+
+# Pre-read hardware temperature on launch if available
+try:
+    with open("/sys/class/thermal/thermal_zone0/temp", "r") as _tf:
+        bike_state["temp"] = round(float(_tf.read().strip()) / 1000.0, 1)
+except Exception:
+    pass
 
 ws_outgoing_queue = []
 active_telemetry_char = None

@@ -128,6 +128,7 @@ void broadcastTelemetry({
   String? lights,
   String? indicator,
   bool? reverse,
+  double? temp,
 }) {
   final Map<String, dynamic> data = {};
   if (speed != null) data['speed'] = speed;
@@ -135,6 +136,7 @@ void broadcastTelemetry({
   if (lights != null) data['lights'] = lights;
   if (indicator != null) data['indicator'] = indicator;
   if (reverse != null) data['reverse'] = reverse;
+  if (temp != null) data['temp'] = temp;
   if (data.isEmpty) return;
 
   final payload = jsonEncode(data);
@@ -392,6 +394,7 @@ class _InterfaceState extends State<Interface> {
   StreamSubscription<double>? speedSub;
   StreamSubscription<int>? speedModeSub;
   StreamSubscription<bool>? reverseSub;
+  StreamSubscription<double>? _tempSub;
   FocusNode focusNode = FocusNode();
 
   // Selected tab state
@@ -452,11 +455,24 @@ class _InterfaceState extends State<Interface> {
         if (tab != _selectedTab) {
           setState(() => _selectedTab = tab);
         }
-        broadcastTelemetry(mode: tab);
+        broadcastTelemetry(mode: tab, temp: TemperatureState.currentTemp);
       });
     } catch (e) {
       // ignore if speedModeController isn't present
     }
+
+    // Listen to hardware temperature sensor and broadcast to phone
+    try {
+      _tempSub = TemperatureState.tempController.stream.listen((temp) {
+        broadcastTelemetry(temp: temp, mode: _selectedTab);
+      });
+    } catch (_) {}
+
+    // Broadcast initial state on startup so BLE daemon and phone are in sync immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final initialTemp = TemperatureState.readHardwareTemp();
+      broadcastTelemetry(mode: _selectedTab, temp: initialTemp);
+    });
 
     // Listen to Raspberry Pi reverse state and toggle stream view
     try {
@@ -590,6 +606,7 @@ class _InterfaceState extends State<Interface> {
     speedSub?.cancel();
     speedModeSub?.cancel();
     reverseSub?.cancel();
+    _tempSub?.cancel();
     _stateMachineController?.dispose();
     focusNode.dispose();
     super.dispose();
@@ -814,7 +831,10 @@ class _InterfaceState extends State<Interface> {
                   ),
                   ModeTabs(
                     selectedTab: _selectedTab,
-                    onTabChanged: (tab) => setState(() => _selectedTab = tab),
+                    onTabChanged: (tab) {
+                      setState(() => _selectedTab = tab);
+                      broadcastTelemetry(mode: tab, temp: TemperatureState.currentTemp);
+                    },
                   ),
                   Positioned(
                     top: 10,

@@ -913,33 +913,33 @@ class TemperatureWidget extends StatefulWidget {
 }
 
 class _TemperatureWidgetState extends State<TemperatureWidget> {
-  late double _temp;
-  Timer? _timer;
-  final math.Random _rnd = math.Random();
+  double _temp = TemperatureState.currentTemp;
+  StreamSubscription<double>? _tempSub;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    _temp = widget.initialTemp.clamp(35.0, 40.0);
-    // Gently simulate realistic slight temperature fluctuation (small deflection) within 35°C to 40°C
-    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) {
-        setState(() {
-          final double delta = (_rnd.nextDouble() * 0.4 - 0.2); // +/- 0.2°C subtle drift
-          double next = _temp + delta;
-          // Keep drift close to the starting temperature (within +/- 1.0°C) without high deflection
-          if ((next - widget.initialTemp).abs() > 1.0) {
-            next = _temp - delta;
-          }
-          _temp = next.clamp(35.0, 40.0);
-        });
+    _temp = TemperatureState.readHardwareTemp();
+
+    _tempSub = TemperatureState.tempController.stream.listen((val) {
+      if (mounted) setState(() => _temp = val);
+    });
+
+    // Read hardware thermal sensor every 3 seconds and update shared state
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      final t = TemperatureState.readHardwareTemp();
+      if (mounted && (t != _temp)) {
+        setState(() => _temp = t);
       }
+      TemperatureState.update(t);
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _tempSub?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 

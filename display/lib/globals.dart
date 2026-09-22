@@ -210,3 +210,31 @@ class NavigationState {
     }
   }
 }
+
+class TemperatureState {
+  static double currentTemp = 37.0;
+  static final StreamController<double> tempController =
+      StreamController<double>.broadcast();
+
+  static void update(double temp) {
+    currentTemp = temp;
+    tempController.add(temp);
+  }
+
+  /// Reads actual Raspberry Pi hardware SoC temperature or provides fallback
+  static double readHardwareTemp() {
+    try {
+      final f = File('/sys/class/thermal/thermal_zone0/temp');
+      if (f.existsSync()) {
+        final raw = f.readAsStringSync().trim();
+        final val = double.tryParse(raw);
+        if (val != null && val > 0) {
+          final deg = (val / 1000.0 * 10).round() / 10.0;
+          currentTemp = deg;
+          return deg;
+        }
+      }
+    } catch (_) {}
+    return currentTemp;
+  }
+}
