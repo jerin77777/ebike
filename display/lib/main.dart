@@ -814,7 +814,8 @@ class _InterfaceState extends State<Interface> {
                                 key: ValueKey(
                                   '${NavigationState.currentDestination?.lat}_'
                                   '${NavigationState.currentDestination?.lon}_'
-                                  '${NavigationState.currentDestination?.name}',
+                                  '${NavigationState.currentDestination?.name}_'
+                                  '${NavigationState.currentDestination?.routePoints.length}',
                                 ),
                                 destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
                                 onClose: () => NavigationState.closeMap(),

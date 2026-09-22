@@ -412,48 +412,47 @@ class EbikeBluetoothService {
 
     log("Sending '$action': ${bytes.length} bytes (MTU now: $mtu, maxSingle: $maxSingle)");
 
-    // 3. Attempt write with response
-    try {
-      await _controlChar!.write(bytes, withoutResponse: false);
-      log("[SUCCESS] '$action' sent with response");
-      lastError = null;
-      return true;
-    } catch (e) {
-      log("Write withResponse failed: $e. Retrying withoutResponse: true...");
-      // 4. Attempt write without response
+    if (bytes.length <= maxSingle) {
+      // 3. Single-packet write
       try {
-        await _controlChar!.write(bytes, withoutResponse: true);
-        log("[SUCCESS] '$action' sent withoutResponse");
+        await _controlChar!.write(bytes, withoutResponse: false);
+        log("[SUCCESS] '$action' sent with response (${bytes.length} B)");
         lastError = null;
         return true;
-      } catch (e2) {
-        log("Write withoutResponse failed: $e2");
-        // 5. Fallback: chunked delivery if payload exceeds maxSingle
-        if (bytes.length > maxSingle) {
-          log("Attempting chunked delivery (${bytes.length} bytes in $maxSingle byte chunks)...");
-          try {
-            for (int i = 0; i < bytes.length; i += maxSingle) {
-              final end = (i + maxSingle < bytes.length) ? i + maxSingle : bytes.length;
-              final chunk = bytes.sublist(i, end);
-              log("Sending chunk [${i + 1}-$end / ${bytes.length}] (${chunk.length} bytes)...");
-              try {
-                await _controlChar!.write(chunk, withoutResponse: false);
-              } catch (_) {
-                await _controlChar!.write(chunk, withoutResponse: true);
-              }
-              await Future.delayed(const Duration(milliseconds: 25));
-            }
-            log("[SUCCESS] All chunks of '$action' sent successfully");
-            lastError = null;
-            return true;
-          } catch (e3) {
-            lastError = "Chunk write error: $e3";
-            log("ERROR: $lastError");
-            return false;
-          }
+      } catch (e) {
+        log("Write withResponse failed: $e. Retrying withoutResponse: true...");
+        try {
+          await _controlChar!.write(bytes, withoutResponse: true);
+          log("[SUCCESS] '$action' sent withoutResponse (${bytes.length} B)");
+          lastError = null;
+          return true;
+        } catch (e2) {
+          lastError = "Write failed: $e2";
+          log("ERROR: $lastError");
+          return false;
         }
-
-        lastError = "Write failed: $e2";
+      }
+    } else {
+      // 4. Chunked delivery when payload exceeds max single write MTU
+      log("Payload size (${bytes.length} B) exceeds single packet MTU limit ($maxSingle B). Sending chunked delivery...");
+      try {
+        final useWithoutResponse = _controlChar!.properties.writeWithoutResponse;
+        for (int i = 0; i < bytes.length; i += maxSingle) {
+          final end = (i + maxSingle < bytes.length) ? i + maxSingle : bytes.length;
+          final chunk = bytes.sublist(i, end);
+          log("Sending chunk [${i + 1}-$end / ${bytes.length}] (${chunk.length} bytes)...");
+          try {
+            await _controlChar!.write(chunk, withoutResponse: useWithoutResponse);
+          } catch (_) {
+            await _controlChar!.write(chunk, withoutResponse: !useWithoutResponse);
+          }
+          await Future.delayed(const Duration(milliseconds: 30));
+        }
+        log("[SUCCESS] All chunks of '$action' sent successfully (${bytes.length} B total)");
+        lastError = null;
+        return true;
+      } catch (e3) {
+        lastError = "Chunk write error: $e3";
         log("ERROR: $lastError");
         return false;
       }
@@ -505,15 +504,15 @@ class EbikeBluetoothService {
     if (distance != null) payload['dist'] = distance;
     if (duration != null) payload['dur'] = duration;
     if (routePoints != null && routePoints.isNotEmpty) {
-      // Sample route to max ~35 points so it fits smoothly into BLE payload
+      // Sample route to max ~25 points so it fits smoothly into BLE payload
       List<List<double>> sampled = [];
-      if (routePoints.length <= 35) {
+      if (routePoints.length <= 25) {
         sampled = routePoints.map((p) => [
           double.parse(p[0].toStringAsFixed(5)),
           double.parse(p[1].toStringAsFixed(5)),
         ]).toList();
       } else {
-        final step = (routePoints.length / 30).ceil();
+        final step = (routePoints.length / 22).ceil();
         for (int i = 0; i < routePoints.length; i += step) {
           sampled.add([
             double.parse(routePoints[i][0].toStringAsFixed(5)),

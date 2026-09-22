@@ -294,26 +294,34 @@ class ControlCharacteristic(Characteristic):
             service
         )
         self._write_buffer = bytearray()
+        self._last_write_time = 0.0
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
     def WriteValue(self, value, options):
         raw_bytes = bytes(value)
-        offset = 0
-        if isinstance(options, dict) and "offset" in options:
-            try:
-                offset = int(options["offset"])
-            except Exception:
-                offset = 0
+        now = time.time()
 
-        if offset == 0:
-            self._write_buffer = bytearray(raw_bytes)
-        else:
-            self._write_buffer.extend(raw_bytes)
+        # If last write was more than 2.5 seconds ago, reset stale buffer
+        if now - self._last_write_time > 2.5:
+            self._write_buffer = bytearray()
+        self._last_write_time = now
+
+        # If a fresh JSON message start ('{') arrives and the previous buffer was already parsed or invalid
+        if raw_bytes.startswith(b'{') and len(self._write_buffer) > 0:
+            try:
+                # Check if buffer in progress is already valid JSON
+                json.loads(self._write_buffer.decode("utf-8"))
+                self._write_buffer = bytearray()
+            except Exception:
+                # Buffer has invalid/stale partial data, reset for new message
+                self._write_buffer = bytearray()
+
+        self._write_buffer.extend(raw_bytes)
 
         try:
-            cmd_text = self._write_buffer.decode("utf-8")
+            cmd_text = self._write_buffer.decode("utf-8").strip()
             cmd = json.loads(cmd_text)
-            # Successfully parsed full JSON payload - reset buffer
+            # Successfully parsed full JSON payload - reset buffer for next command
             self._write_buffer = bytearray()
             print(f"[BLE Host] Received command from mobile: {cmd}")
 
@@ -342,12 +350,12 @@ class ControlCharacteristic(Characteristic):
             if active_telemetry_char:
                 active_telemetry_char.notify_telemetry()
 
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Partial chunk of multi-packet payload - hold in buffer and wait for subsequent chunks
+            pass
         except Exception as e:
-            # If JSON decode failed on a partial BLE chunk, wait for next offset write
-            if offset > 0 or len(raw_bytes) < 30:
-                pass
-            else:
-                print(f"[BLE Host] Error handling command: {e}")
+            print(f"[BLE Host] Error handling command: {e}")
+            self._write_buffer = bytearray()
 
 
 class EbikeGattService(Service):
