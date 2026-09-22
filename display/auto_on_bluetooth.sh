@@ -52,17 +52,40 @@ if id "$USER_NAME" >/dev/null 2>&1; then
     echo "[✓] User '$USER_NAME' added to 'bluetooth' group"
 fi
 
-# Ensure experimental mode is enabled for BlueZ (required for LEAdvertisingManager1 & custom GATT services)
-mkdir -p /etc/systemd/system/bluetooth.service.d/
-cat << 'EOF' > /etc/systemd/system/bluetooth.service.d/override.conf
+# Locate the actual bluetoothd executable path (Debian 12 Bookworm uses /usr/libexec, Debian 11 uses /usr/lib)
+BT_BIN=""
+for candidate in \
+    "$(command -v bluetoothd 2>/dev/null)" \
+    "/usr/libexec/bluetooth/bluetoothd" \
+    "/usr/lib/bluetooth/bluetoothd" \
+    "/usr/sbin/bluetoothd"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        BT_BIN="$candidate"
+        break
+    fi
+done
+
+if [ -n "$BT_BIN" ]; then
+    mkdir -p /etc/systemd/system/bluetooth.service.d/
+    cat << EOF > /etc/systemd/system/bluetooth.service.d/override.conf
 [Service]
 ExecStart=
-ExecStart=/usr/lib/bluetooth/bluetoothd --experimental
+ExecStart=$BT_BIN --experimental
 EOF
+    echo "[✓] Configured BlueZ experimental mode ($BT_BIN --experimental)"
+else
+    rm -f /etc/systemd/system/bluetooth.service.d/override.conf 2>/dev/null || true
+fi
 
 systemctl daemon-reload || true
-systemctl enable bluetooth.service
-systemctl restart bluetooth.service
+systemctl enable bluetooth.service || true
+
+if ! systemctl restart bluetooth.service; then
+    echo "[!] Custom override failed, falling back to default system bluetooth.service..."
+    rm -f /etc/systemd/system/bluetooth.service.d/override.conf 2>/dev/null || true
+    systemctl daemon-reload || true
+    systemctl restart bluetooth.service
+fi
 
 sleep 1
 
