@@ -18,7 +18,7 @@ StreamController<bool> reverseController =
 
 /// Simple Raspberry Pi 4B speedometer & switch listener using rpi_gpio.
 /// Pin mapping matches the custom hardware wiring diagram (40-Pin Header physical pins):
-/// - Pin 32 (BCM GPIO 12): Speedometer Hall Sensor Pulse
+/// - Pin 32 (BCM GPIO 12): Speedometer Hall Sensor Pulse (EM100 Controller Output)
 /// - Pin 35 (BCM GPIO 19): Controller Mode Line 1
 /// - Pin 37 (BCM GPIO 26): Controller Mode Line 2
 /// - Pin 36 (BCM GPIO 16): Turn Indicator Left
@@ -26,9 +26,13 @@ StreamController<bool> reverseController =
 /// - Pin 23 (BCM GPIO 11): Low Beam Headlight Switch
 /// - Pin 24 (BCM GPIO 8):  High Beam Headlight Switch
 /// - Pin 22 (BCM GPIO 25): Reverse Mode Switch
+///
+/// NOTE on Ground:
+/// Physical Pin 30 and Pin 34 are Ground pins directly adjacent to Pin 32.
+/// Connect EM100 Ground and the voltage divider / level shifter Ground here.
 Future<void> listen() async {
   // --- Configuration (Raspberry Pi 40-Pin Header Physical Pin Numbers) ---
-  const int reedPhysicalPin = 32;    // Speedometer Hall Sensor (BCM GPIO 12)
+  const int hallSpeedometerPin = 32; // Speedometer Hall Sensor Pulse (BCM GPIO 12)
   const int speedMode1Pin = 35;      // Controller Mode Line 1 (BCM GPIO 19)
   const int speedMode2Pin = 37;      // Controller Mode Line 2 (BCM GPIO 26)
   const int indicatorLeftPin = 36;   // Turn Indicator Left (BCM GPIO 16)
@@ -37,62 +41,53 @@ Future<void> listen() async {
   const int highBeamPin = 24;        // High Beam Switch (BCM GPIO 8)
   const int reversePin = 22;         // Reverse Switch (BCM GPIO 25)
 
-  const double radiusInches = 18; // tire radius in inches (same as Arduino sketch)
-  const int timeoutMs = 2000; // if no pulse within this -> speed = 0
-  const Duration printInterval = Duration(seconds: 1);
+  // --- Speedometer Calibration & Timing ---
+  // Formula: speed_kmh = frequency_hz * calibrationFactor
+  //
+  // CALIBRATION GUIDE:
+  // 1. Put the ebike on a stand with the driven wheel free.
+  // 2. Run this program and observe the logged Hall pulse frequency (Hz) at steady throttle.
+  // 3. Compare with a reference (e.g. GPS speedometer on test run or rolling road).
+  //    calibrationFactor = GPS_speed_kmh / Measured_Hz
+  //    Example: 20 km/h at 50 Hz  => 20 / 50 = 0.40
+  //             50 km/h at 100 Hz => 50 / 100 = 0.50
+  const double calibrationFactor = 0.4; // km/h per Hz (tune for your motor/controller)
 
-  // For two magnets on the wheel:
-  const int pulsesPerRotation = 2;
-
-  // debounce: ignore multiple falling edges inside this window (ms).
-  // tune this for your hardware; 30-50ms works for most reed switches.
-  const int debounceMs = 40;
-  // ----------------------
-
-  final double circumferenceInches = 2.0 * 3.141592653589793 * radiusInches;
-  const double inchesPerMile = 5280.0 * 12.0; // 63360
+  const Duration sampleInterval = Duration(milliseconds: 250); // Speed update every 250ms (4 Hz)
+  const int timeoutMs = 1200; // If no pulse within 1.2s -> speed drops to 0.0 km/h
+  const int minPulseIntervalMs = 1; // 1ms glitch filter (supports up to ~1000 Hz pulse rates)
 
   // monotonic stopwatch for timing (reliable vs. system clock changes)
   final sw = Stopwatch()..start();
 
   // initialize native gpio implementation for Raspberry Pi
   final gpio = await initialize_RpiGpio(); // returns an implementation of Gpio
-  // optional: change polling frequency for input streams (default ~10ms)
-  gpio.pollingFrequency = Duration(milliseconds: 5);
+  // 1ms polling frequency allows capturing up to ~500 Hz pulse signals accurately
+  gpio.pollingFrequency = const Duration(milliseconds: 1);
 
-  // --- Reed input ---
-  final reedInput = gpio.input(reedPhysicalPin, Pull.up);
+  // --- Hall Speedometer input ---
+  // Pin 32 (BCM 12). Pull.off because external voltage divider / level shifter sets logic levels.
+  // If your level shifter / optocoupler requires internal pull-down or pull-up, adjust accordingly.
+  final hallInput = gpio.input(hallSpeedometerPin, Pull.off);
 
-  bool? lastRawValue; // null until first sampled value
-  int? lastAcceptedPulseMs; // monotonic ms of last accepted pulse
-  int? lastIntervalMs; // ms between last two accepted pulses (time between pulses)
-  int lastSeenMs = sw.elapsedMilliseconds;
+  bool? lastHallRaw;
+  int pulseCountInWindow = 0;
+  int lastPulseMs = 0;
+  int lastSampleWindowMs = sw.elapsedMilliseconds;
+  int lastLogMs = 0;
+  double currentSpeedKmh = 0.0;
 
-  final reedSub = reedInput.values.listen((bool rawValue) {
+  final hallSub = hallInput.values.listen((bool rawValue) {
     final nowMs = sw.elapsedMilliseconds;
 
-    // With pull-up: idle = HIGH (true). Reed CLOSED => pin pulled to GND => LOW (false).
-    // Trigger on falling edge: true -> false.
-    if (lastRawValue == true && rawValue == false) {
-      // candidate pulse (falling edge)
-      if (lastAcceptedPulseMs == null) {
-        // first accepted pulse
-        lastAcceptedPulseMs = nowMs;
-      } else {
-        final dt = nowMs - lastAcceptedPulseMs!;
-        // accept only if outside debounce window
-        if (dt >= debounceMs) {
-          lastIntervalMs = dt;
-          lastAcceptedPulseMs = nowMs;
-        } // else: ignore as bounce / duplicate
+    // Detect RISING EDGE: LOW (false) -> HIGH (true)
+    if (lastHallRaw == false && rawValue == true) {
+      if (lastPulseMs == 0 || (nowMs - lastPulseMs) >= minPulseIntervalMs) {
+        pulseCountInWindow++;
+        lastPulseMs = nowMs;
       }
-      lastSeenMs = nowMs;
-    } else if (rawValue == true) {
-      // when line goes back to HIGH we still update lastSeen
-      lastSeenMs = nowMs;
     }
-
-    lastRawValue = rawValue;
+    lastHallRaw = rawValue;
   });
 
   // --- Additional switch inputs ---
@@ -214,28 +209,53 @@ Future<void> listen() async {
     }),
   ];
 
-  // periodic printer for speed — keep it as your single numeric stream publisher
-  final timer = Timer.periodic(printInterval, (_) {
+  // Periodic speed calculator & publisher (runs every 250ms for smooth UI response)
+  final speedTimer = Timer.periodic(sampleInterval, (_) {
     final nowMs = sw.elapsedMilliseconds;
+    final int dtMs = nowMs - lastSampleWindowMs;
+    lastSampleWindowMs = nowMs;
 
-    double mph = 0.0;
-    if (lastIntervalMs != null && (nowMs - lastSeenMs) <= timeoutMs) {
-      // lastIntervalMs = ms between adjacent pulses
-      final msPerRotation = lastIntervalMs! * pulsesPerRotation;
-      // mph = circumference_in_inches * 3600000 / (inches_per_mile * ms_per_rotation)
-      mph = (circumferenceInches * 3600000.0) / (inchesPerMile * msPerRotation);
+    final int pulses = pulseCountInWindow;
+    pulseCountInWindow = 0;
+
+    double frequencyHz = 0.0;
+
+    if (lastPulseMs > 0 && (nowMs - lastPulseMs) <= timeoutMs && dtMs > 0) {
+      frequencyHz = (pulses * 1000.0) / dtMs;
+      final double targetSpeedKmh = frequencyHz * calibrationFactor;
+      // Slight smoothing filter for stable display readings
+      if (pulses > 0) {
+        currentSpeedKmh = (currentSpeedKmh * 0.3) + (targetSpeedKmh * 0.7);
+      } else {
+        // Decay speed if no pulses arrived in this particular sub-window
+        currentSpeedKmh *= 0.5;
+        if (currentSpeedKmh < 0.2) currentSpeedKmh = 0.0;
+      }
     } else {
-      mph = 0.0;
+      frequencyHz = 0.0;
+      currentSpeedKmh = 0.0;
     }
 
-    // publish speed (matching your Arduino Serial.println single-value style)
-    speedController.add(mph);
+    // Publish speed in km/h to dashboard and telemetry
+    final double displaySpeed = double.parse(currentSpeedKmh.toStringAsFixed(1));
+    speedController.add(displaySpeed);
+
+    // Diagnostic logging once per second while active (helps calibration)
+    if ((nowMs - lastLogMs) >= 1000) {
+      lastLogMs = nowMs;
+      if (displaySpeed > 0 || pulses > 0) {
+        stdout.writeln(
+          '[Speedometer] Pulses/sec (Hz): ${frequencyHz.toStringAsFixed(1)} | '
+          'Speed: ${displaySpeed.toStringAsFixed(1)} km/h',
+        );
+      }
+    }
   });
 
   // cleanup on exit
   void cleanExit([int exitCode = 0]) async {
-    timer.cancel();
-    await reedSub.cancel();
+    speedTimer.cancel();
+    await hallSub.cancel();
     for (final s in subs) {
       await s.cancel();
     }

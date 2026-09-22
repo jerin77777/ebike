@@ -6,6 +6,8 @@ class Pallet {
   static Color font1 = Colors.white;
 }
 
+bool debug = true;
+
 enum BtConnectionState { disconnected, advertising, connected }
 
 class BluetoothState {
@@ -47,8 +49,8 @@ class HostState {
         final script = File('toggle_hotspot.sh').existsSync()
             ? 'toggle_hotspot.sh'
             : (File('display/toggle_hotspot.sh').existsSync()
-                ? 'display/toggle_hotspot.sh'
-                : '/home/ebike/ebike/display/toggle_hotspot.sh');
+                  ? 'display/toggle_hotspot.sh'
+                  : '/home/ebike/ebike/display/toggle_hotspot.sh');
 
         final action = nextState ? 'on' : 'off';
         final res = await Process.run('bash', [script, action]);
@@ -56,7 +58,8 @@ class HostState {
           debugPrint('Hotspot $action stderr: ${res.stderr}');
         }
         final checkRes = await Process.run('bash', [script, 'status']);
-        final isNowActive = checkRes.stdout.toString().trim() == 'active' ||
+        final isNowActive =
+            checkRes.stdout.toString().trim() == 'active' ||
             (res.exitCode == 0 && nextState);
         update(isNowActive, transitioning: false);
       } catch (e) {
@@ -77,8 +80,8 @@ class HostState {
       final script = File('toggle_hotspot.sh').existsSync()
           ? 'toggle_hotspot.sh'
           : (File('display/toggle_hotspot.sh').existsSync()
-              ? 'display/toggle_hotspot.sh'
-              : '/home/ebike/ebike/display/toggle_hotspot.sh');
+                ? 'display/toggle_hotspot.sh'
+                : '/home/ebike/ebike/display/toggle_hotspot.sh');
 
       final res = await Process.run('bash', [script, 'status']);
       final isNowActive = res.stdout.toString().trim() == 'active';

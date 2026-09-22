@@ -1,0 +1,133 @@
+================================================================================
+           EM100 HALL SPEEDOMETER INTEGRATION & CALIBRATION TODO
+================================================================================
+Project: E-Bike Dashboard & Telemetry
+Target Hardware: Votol EM100 Controller + Raspberry Pi 4B (Flutter Display)
+Assigned Line: Pin 32 (BCM GPIO 12, PWM0) & Pin 30/34 (Ground)
+Date: 2026-09-22
+================================================================================
+
+[!] CRITICAL HARDWARE SAFETY NOTICE:
+    Raspberry Pi GPIO pins operate STRICTLY at 3.3V maximum!
+    Never connect the EM100 Hall speedometer wire directly to the Raspberry Pi
+    without verifying voltage and installing level shifting / voltage division.
+    Excess voltage (5V or 12V) will permanently burn out the GPIO or SoC.
+
+--------------------------------------------------------------------------------
+1. PINOUT ASSIGNMENT (Matches diagram.png)
+--------------------------------------------------------------------------------
+From your custom Raspberry Pi 4B wiring layout:
+  * Hall Speedometer Pulse Signal:  Physical Pin 32 (BCM GPIO 12)
+  * Reference Ground:               Physical Pin 30 or Pin 34 (GND)
+    (Note: Pin 32 is conveniently located directly between GND Pin 30 and GND Pin 34)
+
+--------------------------------------------------------------------------------
+2. STEP-BY-STEP ACTION CHECKLIST
+--------------------------------------------------------------------------------
+
+[ ] STEP 1: IDENTIFY WIRES & MEASURE VOLTAGE BEFORE CONNECTING
+    1. Locate the EM100 Hall Speedometer output wire on your controller harness.
+    2. Locate a solid EM100 Signal Ground wire.
+    3. Take a Multimeter set to DC Voltage mode:
+       - Black probe -> EM100 Ground.
+       - Red probe   -> EM100 Hall Speed output wire.
+    4. Measure at rest (stationary): Note the voltage.
+    5. Spin the driven wheel slowly by hand:
+       - Does the voltage alternate between 0V and a HIGH state?
+       - What is the HIGH voltage level? (Is it ~5V, ~12V, or open-collector?)
+
+[ ] STEP 2: BUILD SIGNAL PROTECTION CIRCUIT
+    Choose the circuit matching your measured HIGH voltage:
+
+    A. If the output is ~5V (Standard 5V Logic):
+       Build a Voltage Divider:
+         EM100 Hall Output
+                │
+                ├───[ 10 kΩ Resistor ]───┬───> Raspberry Pi Pin 32 (GPIO 12)
+                                         │
+                                   [ 20 kΩ Resistor ]
+                                         │
+                                         ▼
+                                Raspberry Pi GND (Pin 30 or Pin 34)
+                                         │
+                                   EM100 Ground
+       Calculation: 5.0V × 20k / (10k + 20k) = 3.33V (Perfect for RPi GPIO).
+
+    B. If the output is ~12V (Automotive 12V Logic):
+       - Option 1 (Optocoupler - Highly Recommended):
+         Use a PC817 or EL817 optocoupler.
+         EM100 12V pulse drives the optocoupler input LED through a 1 kΩ resistor.
+         The phototransistor output switches Raspberry Pi 3.3V to Pin 32.
+         This provides total electrical isolation from motor noise and spikes.
+       - Option 2 (Voltage Divider):
+         27 kΩ series resistor with a 10 kΩ resistor to GND:
+         12.0V × 10k / (27k + 10k) = 3.24V.
+
+    C. If the output is Open-Collector (switches only to GND):
+       Connect a 4.7 kΩ or 10 kΩ pull-up resistor from Raspberry Pi 3.3V (Pin 1)
+       to Pin 32 (GPIO 12), and connect the EM100 Hall wire to Pin 32.
+
+[ ] STEP 3: COMMON GROUND & EMI NOISE SHIELDING
+    1. Ensure a common ground wire connects EM100 Signal GND to Raspberry Pi GND
+       (Pin 30 or Pin 34).
+    2. KEEP SIGNAL WIRES CLEAR OF MOTOR PHASE WIRES:
+       The 3 thick motor phase wires carry massive high-frequency PWM switching
+       currents. Running the Hall signal wire right next to them will inject
+       electromagnetic noise, leading to fake/erratic speed spikes.
+    3. If possible, twist the Hall signal wire with a Ground wire (twisted pair)
+       or use shielded cable with the shield tied to Ground at one end.
+
+[ ] STEP 4: VERIFY SIGNAL WITH RASPBERRY PI
+    1. Boot the Raspberry Pi.
+    2. With the voltage divider / level shifter connected, measure the voltage
+       reaching Pin 32 while rotating the wheel. Confirm it stays <= 3.3V.
+    3. Launch the Flutter display application (`flutter run` in `/display` or systemd).
+
+[ ] STEP 5: CALIBRATE SPEEDOMETER (GPS ALIGNMENT)
+    The software in `display/lib/raspberrypi.dart` calculates:
+        speed_kmh = pulse_frequency_hz × calibrationFactor
+
+    Why calibration is necessary:
+    The EM100 Hall speed output is derived from motor pole pairs and controller
+    commutation; 1 pulse does NOT typically equal 1 wheel rotation.
+
+    Calibration Procedure:
+    1. Lift the bike onto a center stand so the rear wheel can spin safely.
+    2. Run the display application in a terminal to observe the debug logs:
+       `[Speedometer] Pulses/sec (Hz): <freq> | Speed: <kmh>`
+    3. Apply steady throttle to run the motor at constant speeds. Note the Hz:
+       e.g.,
+         At steady RPM 1:  Pulse Freq = 25.0 Hz
+         At steady RPM 2:  Pulse Freq = 50.0 Hz
+         At steady RPM 3:  Pulse Freq = 100.0 Hz
+    4. Carry out a test run using a phone GPS speedometer (or on a rolling dyno):
+       Compare GPS Speed (km/h) against the measured Hall Frequency (Hz):
+         calibrationFactor = GPS_speed (km/h) / Hall_frequency (Hz)
+
+       Example Data:
+         GPS Speed     Hall Frequency     Computed Factor
+         ------------------------------------------------
+         20.0 km/h     50.0 Hz            20 / 50  = 0.40
+         40.0 km/h     100.0 Hz           40 / 100 = 0.40
+         60.0 km/h     150.0 Hz           60 / 150 = 0.40
+
+    5. Open `display/lib/raspberrypi.dart` and update:
+       `const double calibrationFactor = 0.4; // Replace 0.4 with your calculated factor`
+
+[ ] STEP 6: END-TO-END SYSTEM VALIDATION
+    1. Confirm the Rive digital speedometer needle on the Pi screen moves smoothly
+       and reflects the actual speed.
+    2. Check the Mobile App: Confirm the BLE/WebSocket telemetry dashboard shows
+       `Live Speed: XX.X km/h` matching the dashboard display.
+    3. Stop the wheel and confirm speed drops cleanly to `0.0 km/h` within 1.2 seconds.
+
+================================================================================
+SUMMARY OF MODIFIED SOFTWARE FILES:
+  - `display/lib/raspberrypi.dart`:
+    * Assigned Pin 32 (`hallSpeedometerPin`) for EM100 pulse input.
+    * Configured 1ms polling rate for up to 500 Hz pulse detection.
+    * Implemented rising edge detection and pulse rate calculation (Hz).
+    * Calculates and outputs real-time speed in km/h.
+    * Added smoothing and auto-zero timeout (1.2s).
+    * Integrated diagnostic frequency logging for easy GPS calibration.
+================================================================================
