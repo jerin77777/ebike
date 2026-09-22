@@ -46,11 +46,11 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
   bool _isBtConnected = false;
   bool _isLocked = true;
   bool _lightsOn = false;
-  String _selectedMode = 'Sport';
-  int _batteryLevel = 84;
-  int _rangeKm = 68;
-  double _currentSpeed = 0.0;
-  double _temperature = 28.5;
+  String? _selectedMode;
+  int? _batteryLevel;
+  int? _rangeKm;
+  double? _currentSpeed;
+  double? _temperature;
 
   final List<Map<String, dynamic>> _rideModes = [
     {'name': 'Eco', 'icon': Icons.eco, 'color': Colors.green},
@@ -69,6 +69,13 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
       if (mounted) {
         setState(() {
           _isBtConnected = (state == BluetoothConnectionState.connected);
+          if (!_isBtConnected) {
+            _selectedMode = null;
+            _batteryLevel = null;
+            _rangeKm = null;
+            _currentSpeed = null;
+            _temperature = null;
+          }
         });
       }
       if (state == BluetoothConnectionState.connected) {
@@ -92,6 +99,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
             if (m['name'].toString().toLowerCase() == data.mode.toLowerCase()) {
               _selectedMode = m['name'];
             }
+          }
+          if (_selectedMode == null && data.mode.isNotEmpty) {
+            _selectedMode = data.mode;
           }
         });
       }
@@ -258,7 +268,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  '$_batteryLevel%',
+                                  _batteryLevel != null ? '$_batteryLevel%' : '--',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 40,
@@ -296,7 +306,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '$_rangeKm km',
+                                _rangeKm != null ? '$_rangeKm km' : '--',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 20,
@@ -313,11 +323,13 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: LinearProgressIndicator(
-                        value: _batteryLevel / 100.0,
+                        value: _batteryLevel != null
+                            ? (_batteryLevel! / 100.0).clamp(0.0, 1.0)
+                            : 0.0,
                         minHeight: 10,
                         backgroundColor: Colors.white24,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Colors.greenAccent,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _batteryLevel != null ? Colors.greenAccent : Colors.white12,
                         ),
                       ),
                     ),
@@ -326,12 +338,14 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _buildQuickStatus(
-                          '${_temperature.toStringAsFixed(1)}°C',
+                          _temperature != null
+                              ? '${_temperature!.toStringAsFixed(1)}°C'
+                              : '--',
                           'Temperature',
                           Icons.thermostat_rounded,
                         ),
                         _buildQuickStatus(
-                          _selectedMode,
+                          _selectedMode ?? '--',
                           'Ride Mode',
                           Icons.tune,
                         ),

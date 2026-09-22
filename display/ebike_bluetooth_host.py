@@ -230,6 +230,15 @@ class TelemetryCharacteristic(Characteristic):
     def notify_telemetry(self):
         if not self.notifying:
             return
+
+        # Dynamically read thermal sensor from Raspberry Pi
+        try:
+            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                cputemp = float(f.read().strip()) / 1000.0
+                bike_state["temp"] = round(cputemp, 1)
+        except Exception:
+            pass
+
         payload = json.dumps(bike_state).encode("utf-8")
         value = [dbus.Byte(b) for b in payload]
         self.PropertiesChanged(
@@ -616,6 +625,18 @@ def main():
     ws_thread = threading.Thread(target=start_asyncio_thread, daemon=True)
     ws_thread.start()
     print("[BLE Host] Background display sync thread started")
+
+    # Periodic background telemetry broadcast loop (every 1.0 second over BLE to connected phone)
+    def periodic_telemetry_tick():
+        if active_telemetry_char and active_telemetry_char.notifying:
+            try:
+                active_telemetry_char.notify_telemetry()
+            except Exception:
+                pass
+        return True
+
+    GLib.timeout_add_seconds(1, periodic_telemetry_tick)
+    print("[BLE Host] 1 Hz real-time telemetry streaming timer registered")
 
     print("[BLE Host] Daemon started. Press Ctrl+C to terminate.")
     try:
