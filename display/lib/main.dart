@@ -599,10 +599,10 @@ class _InterfaceState extends State<Interface> {
                 // If stream mode is on show StreamViewWrapper full screen, otherwise show map or normal UI.
                 if (_showStream)
                   const Positioned.fill(child: StreamViewWrapper())
-                else if (_showMap && NavigationState.currentDestination != null)
+                else if (_showMap)
                   Positioned.fill(
                     child: EbikeNavigationWidget(
-                      destination: NavigationState.currentDestination!,
+                      destination: NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
                       onClose: () => NavigationState.closeMap(),
                     ),
                   )
@@ -650,35 +650,35 @@ class _InterfaceState extends State<Interface> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (NavigationState.currentDestination != null) ...[
-                          GestureDetector(
-                            onTap: () => NavigationState.openMap(NavigationState.currentDestination!),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0066FF).withValues(alpha: 0.25),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF0066FF)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.navigation, color: Color(0xFF3399FF), size: 14),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    NavigationState.currentDestination!.name,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                        GestureDetector(
+                          onTap: () => NavigationState.openMap(
+                            NavigationState.currentDestination ?? NavigationState.defaultCoimbatore,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0066FF).withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF0066FF)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.navigation, color: Color(0xFF3399FF), size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  NavigationState.currentDestination?.name ?? 'Coimbatore Map [M]',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 10),
-                        ],
+                        ),
+                        const SizedBox(width: 10),
                         const HostIndicatorWidget(),
                         const SizedBox(width: 10),
                         const SmokeSensorWidget(),

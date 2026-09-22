@@ -132,6 +132,13 @@ class MapDestination {
 }
 
 class NavigationState {
+  static const MapDestination defaultCoimbatore = MapDestination(
+    name: 'Coimbatore City',
+    address: 'Tamil Nadu, India',
+    lat: 11.0168,
+    lon: 76.9558,
+  );
+
   static final StreamController<MapDestination?> destinationController =
       StreamController<MapDestination?>.broadcast();
   static final StreamController<bool> activeController =
@@ -140,10 +147,10 @@ class NavigationState {
   static MapDestination? currentDestination;
   static bool isNavigating = false;
 
-  static void openMap(MapDestination destination) {
-    currentDestination = destination;
+  static void openMap([MapDestination? destination]) {
+    currentDestination = destination ?? defaultCoimbatore;
     isNavigating = true;
-    destinationController.add(destination);
+    destinationController.add(currentDestination);
     activeController.add(true);
   }
 
@@ -155,8 +162,8 @@ class NavigationState {
   static void toggle() {
     if (isNavigating) {
       closeMap();
-    } else if (currentDestination != null) {
-      openMap(currentDestination!);
+    } else {
+      openMap(currentDestination ?? defaultCoimbatore);
     }
   }
 }

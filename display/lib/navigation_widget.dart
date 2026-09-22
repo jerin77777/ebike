@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'globals.dart';
+import 'offline_tile_provider.dart';
 import 'raspberrypi.dart';
 
 /// Fullscreen Navigation Widget for E-Bike Display (1024x680)
@@ -80,12 +81,12 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
   }
 
   void _zoomIn() {
-    _currentZoom = (_currentZoom + 1).clamp(3.0, 18.0);
+    _currentZoom = (_currentZoom + 1).clamp(10.0, 18.0);
     _mapController.move(_mapController.camera.center, _currentZoom);
   }
 
   void _zoomOut() {
-    _currentZoom = (_currentZoom - 1).clamp(3.0, 18.0);
+    _currentZoom = (_currentZoom - 1).clamp(10.0, 18.0);
     _mapController.move(_mapController.camera.center, _currentZoom);
   }
 
@@ -97,20 +98,25 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. OpenStreetMap Interactive Layer
+          // 1. Interactive Coimbatore Offline Map Layer
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
               initialCenter: destLatLng,
               initialZoom: _currentZoom,
-              minZoom: 3.0,
+              minZoom: 10.0,
               maxZoom: 18.0,
               backgroundColor: const Color(0xFF14171F),
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.ebike.display',
+                tileProvider: CoimbatoreOfflineTileProvider(
+                  enableNetworkFallback: false,
+                ),
+                minNativeZoom: 10,
+                maxNativeZoom: 15,
+                minZoom: 10.0,
+                maxZoom: 18.0,
                 tileBuilder: (context, tileWidget, tile) {
                   // Invert/dim tiles slightly for high-contrast e-bike dark mode
                   return ColorFiltered(
@@ -226,32 +232,49 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                       children: [
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.bluetooth, color: Colors.greenAccent, size: 12),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'PHONE SYNC',
-                                    style: TextStyle(
-                                      color: Colors.greenAccent,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
+                            Builder(
+                              builder: (context) {
+                                final isSynced = widget.destination.name != 'Coimbatore City' &&
+                                    (widget.destination.distance != null ||
+                                        BluetoothState.currentStatus == BtConnectionState.connected);
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSynced
+                                        ? Colors.green.withValues(alpha: 0.2)
+                                        : const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isSynced
+                                          ? Colors.green.withValues(alpha: 0.5)
+                                          : const Color(0xFF00E5FF).withValues(alpha: 0.5),
                                     ),
                                   ),
-                                ],
-                              ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isSynced ? Icons.bluetooth : Icons.offline_pin_rounded,
+                                        color: isSynced ? Colors.greenAccent : const Color(0xFF00E5FF),
+                                        size: 12,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isSynced ? 'PHONE SYNC' : 'OFFLINE MAP • COIMBATORE',
+                                        style: TextStyle(
+                                          color: isSynced ? Colors.greenAccent : const Color(0xFF00E5FF),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                             if (widget.destination.distance != null) ...[
                               const SizedBox(width: 8),
