@@ -64,7 +64,9 @@ if command -v hciconfig >/dev/null 2>&1; then
 fi
 
 bluetoothctl power on || true
-bluetoothctl discoverable-timeout 0 || true
+# 300s (5 min) pairing window on boot avoids the BlueZ "discoverable-timeout 0 not recommended" warning.
+# Note: Paired phones reconnect anytime even when discoverable mode times out.
+bluetoothctl discoverable-timeout 300 || true
 bluetoothctl discoverable on || true
 bluetoothctl pairable on || true
 bluetoothctl system-alias "Volt-EBike-RPI4" || true
