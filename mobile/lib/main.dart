@@ -50,6 +50,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
   int _batteryLevel = 84;
   int _rangeKm = 68;
   double _currentSpeed = 0.0;
+  double _temperature = 28.5;
 
   final List<Map<String, dynamic>> _rideModes = [
     {'name': 'Eco', 'icon': Icons.eco, 'color': Colors.green},
@@ -80,6 +81,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
       if (mounted) {
         setState(() {
           _currentSpeed = data.speed;
+          _temperature = data.temp;
           _batteryLevel = data.battery;
           _rangeKm = data.range;
           _isLocked = data.locked;
@@ -324,9 +326,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _buildQuickStatus(
-                          '${_currentSpeed.toStringAsFixed(1)} km/h',
-                          'Live Speed',
-                          Icons.speed,
+                          '${_temperature.toStringAsFixed(1)}°C',
+                          'Temperature',
+                          Icons.thermostat_rounded,
                         ),
                         _buildQuickStatus(
                           _selectedMode,
