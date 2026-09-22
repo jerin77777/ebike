@@ -52,6 +52,14 @@ if id "$USER_NAME" >/dev/null 2>&1; then
     echo "[✓] User '$USER_NAME' added to 'bluetooth' group"
 fi
 
+# Ensure experimental mode is enabled for BlueZ (required for LEAdvertisingManager1 & custom GATT services)
+mkdir -p /etc/systemd/system/bluetooth.service.d/
+cat << 'EOF' > /etc/systemd/system/bluetooth.service.d/override.conf
+[Service]
+ExecStart=
+ExecStart=/usr/lib/bluetooth/bluetoothd --experimental
+EOF
+
 systemctl daemon-reload || true
 systemctl enable bluetooth.service
 systemctl restart bluetooth.service

@@ -272,24 +272,41 @@ class _MapScreenState extends State<MapScreen> {
             ),
           );
         } else {
+          final errDetail = bt.lastError ?? 'Could not write to E-Bike control characteristic';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Row(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Failed to sync location to E-Bike display over Bluetooth',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                  const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Failed to sync location to E-Bike',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    errDetail,
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
+              ),
+              action: SnackBarAction(
+                label: 'VIEW LOGS',
+                textColor: Colors.amberAccent,
+                onPressed: () => bt.showLogsDialog(context),
               ),
               backgroundColor: const Color(0xFFB00020),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              duration: const Duration(seconds: 4),
+              duration: const Duration(seconds: 6),
             ),
           );
         }
@@ -308,10 +325,15 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ],
             ),
+            action: SnackBarAction(
+              label: 'LOGS',
+              textColor: Colors.white,
+              onPressed: () => bt.showLogsDialog(context),
+            ),
             backgroundColor: const Color(0xFF333333),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -640,6 +662,19 @@ class _MapScreenState extends State<MapScreen> {
                                   ),
                                 ),
                               ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Material(
+                            elevation: 6,
+                            shadowColor: Colors.black26,
+                            shape: const CircleBorder(),
+                            color: isDark ? const Color(0xFF242526) : Colors.white,
+                            child: IconButton(
+                              icon: const Icon(Icons.receipt_long_rounded, size: 20),
+                              color: const Color(0xFF0066FF),
+                              onPressed: () => EbikeBluetoothService.instance.showLogsDialog(context),
+                              tooltip: 'Bluetooth Logs',
                             ),
                           ),
                         ],
