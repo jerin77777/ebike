@@ -332,7 +332,6 @@ class _BluetoothModalState extends State<BluetoothModal>
   Widget _buildScanningView(bool isDark, Color primaryColor) {
     final ebikeResults = _scanResults.where(_isEbikeDevice).toList();
     final visibleScanResults = _onlyShowEbike ? ebikeResults : _scanResults;
-    final otherCount = _scanResults.length - ebikeResults.length;
 
     final ebikeBonded = _bondedDevices.where(_isEbikeBonded).toList();
     final visibleBonded = _onlyShowEbike ? ebikeBonded : _bondedDevices;
