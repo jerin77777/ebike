@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'services/bluetooth_service.dart';
+import 'widgets/bluetooth_modal.dart';
 
 class SearchResult {
   final String displayName;
@@ -340,6 +341,251 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  /// Prompts the user to confirm whether they want to sync navigation with the E-Bike display
+  Future<void> _promptSyncWithEbike({
+    required String name,
+    required String address,
+    required double lat,
+    required double lon,
+    String? distance,
+    String? duration,
+  }) async {
+    if (!mounted) return;
+    final bt = EbikeBluetoothService.instance;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (bt.isConnected) {
+      final shouldSync = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: isDark ? const Color(0xFF161B26) : Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.pedal_bike_rounded,
+                      color: Color(0xFF0066FF),
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Sync with E-Bike Display?',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Send "$name"${distance != null ? " ($distance • $duration)" : ""} to your E-Bike dashboard for real-time split-screen navigation.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            side: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey[300]!,
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(
+                            'Phone Only',
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0066FF),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          icon: const Icon(Icons.sync_rounded, size: 20),
+                          label: const Text(
+                            'Sync to Bike',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      if (shouldSync == true && mounted) {
+        _sendDestinationToEbike(
+          name: name,
+          address: address,
+          lat: lat,
+          lon: lon,
+          distance: distance,
+          duration: duration,
+          showToast: true,
+        );
+      }
+    } else {
+      // E-Bike not connected - offer to pair
+      final shouldConnect = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: isDark ? const Color(0xFF161B26) : Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.bluetooth_disabled_rounded,
+                      color: Colors.orange,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'E-Bike Not Connected',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Route is ready on your phone! Connect your E-Bike via Bluetooth to mirror navigation on the bike screen.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            side: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey[300]!,
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(
+                            'Phone Only',
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0066FF),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          icon: const Icon(Icons.bluetooth_searching_rounded, size: 20),
+                          label: const Text(
+                            'Pair E-Bike',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      if (shouldConnect == true && mounted) {
+        BluetoothModal.show(context);
+      }
+    }
+  }
+
   void _selectSearchResult(SearchResult result) {
     FocusScope.of(context).unfocus();
     final targetLatLng = LatLng(result.lat, result.lon);
@@ -355,14 +601,6 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     _mapController.move(targetLatLng, 15.0);
-
-    // Automatically send searched location to paired E-Bike display
-    _sendDestinationToEbike(
-      name: result.name,
-      address: result.displayName,
-      lat: result.lat,
-      lon: result.lon,
-    );
   }
 
   // Reverse geocode when map is tapped
@@ -448,15 +686,14 @@ class _MapScreenState extends State<MapScreen> {
 
             _fitMapToBounds(origin, destination);
 
-            // Sync calculated route to paired E-Bike display
-            _sendDestinationToEbike(
+            // Ask user if they want to sync navigation to E-Bike display
+            _promptSyncWithEbike(
               name: _selectedPlaceName ?? 'Destination',
               address: _selectedAddress ?? '',
               lat: destination.latitude,
               lon: destination.longitude,
               distance: _routeDistance,
               duration: _routeDuration,
-              showToast: true,
             );
           }
           return;
@@ -485,6 +722,16 @@ class _MapScreenState extends State<MapScreen> {
       });
 
       _fitMapToBounds(origin, destination);
+
+      // Ask user if they want to sync navigation to E-Bike display
+      _promptSyncWithEbike(
+        name: _selectedPlaceName ?? 'Destination',
+        address: _selectedAddress ?? '',
+        lat: destination.latitude,
+        lon: destination.longitude,
+        distance: _routeDistance,
+        duration: _routeDuration,
+      );
     }
   }
 
@@ -902,6 +1149,22 @@ class _MapScreenState extends State<MapScreen> {
                                       ],
                                     ),
                                     const Spacer(),
+                                    IconButton(
+                                      tooltip: 'Sync with E-Bike Display',
+                                      icon: const Icon(Icons.sync_rounded, color: Color(0xFF0066FF), size: 22),
+                                      onPressed: () {
+                                        if (_selectedLocation != null) {
+                                          _promptSyncWithEbike(
+                                            name: _selectedPlaceName ?? 'Destination',
+                                            address: _selectedAddress ?? '',
+                                            lat: _selectedLocation!.latitude,
+                                            lon: _selectedLocation!.longitude,
+                                            distance: _routeDistance,
+                                            duration: _routeDuration,
+                                          );
+                                        }
+                                      },
+                                    ),
                                     TextButton.icon(
                                       onPressed: _clearRoute,
                                       icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
@@ -949,38 +1212,6 @@ class _MapScreenState extends State<MapScreen> {
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 42,
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF0066FF),
-                                  side: const BorderSide(color: Color(0xFF0066FF), width: 1.5),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  if (_selectedLocation != null) {
-                                    _sendDestinationToEbike(
-                                      name: _selectedPlaceName ?? 'Selected Location',
-                                      address: _selectedAddress ?? '',
-                                      lat: _selectedLocation!.latitude,
-                                      lon: _selectedLocation!.longitude,
-                                      distance: _routeDistance,
-                                      duration: _routeDuration,
-                                      showToast: true,
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.bluetooth_connected, size: 20),
-                                label: const Text(
-                                  'Open on E-Bike Display',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ),
