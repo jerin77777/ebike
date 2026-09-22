@@ -124,7 +124,7 @@ class _TurnIndicatorBarState extends State<TurnIndicatorBar>
                 // Bottom-right: Turn Indicator Neon Arrows
                 Positioned(
                   right: 12,
-                  bottom: 20,
+                  bottom: 18,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
