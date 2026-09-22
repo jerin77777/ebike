@@ -274,7 +274,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 16),
                                 _buildBatteryIndicator(_batteryLevel),
                               ],
                             ),
