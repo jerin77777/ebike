@@ -69,10 +69,25 @@ bluetoothctl discoverable on || true
 bluetoothctl pairable on || true
 bluetoothctl system-alias "Volt-EBike-RPI4" || true
 
-echo "=== [4/4] Current Bluetooth Status ==="
+echo "=== [4/4] Starting E-Bike BLE GATT Host Daemon ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
+    echo "[*] Launching E-Bike BLE GATT Host Daemon in background..."
+    nohup python3 "$SCRIPT_DIR/ebike_bluetooth_host.py" > /tmp/ebike_ble.log 2>&1 &
+    sleep 1
+    if pgrep -f "ebike_bluetooth_host.py" >/dev/null 2>&1; then
+        echo "[✓] BLE GATT Host Daemon active"
+    else
+        echo "[!] Notice: check /tmp/ebike_ble.log if BLE daemon failed to start."
+    fi
+else
+    echo "[✓] BLE GATT Host Daemon is already running."
+fi
+
+echo "=== Current Bluetooth Status ==="
 bluetoothctl show | grep -E "Controller|Name|Alias|Powered|Discoverable|Pairable" || true
 
 echo ""
 echo "======================================================================"
-echo " [✓] Bluetooth is now ON and will automatically turn ON on every boot!"
+echo " [✓] Bluetooth is now ON and BLE Host is advertising Volt-EBike-RPI4!"
 echo "======================================================================"

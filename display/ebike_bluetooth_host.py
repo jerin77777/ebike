@@ -308,7 +308,6 @@ class Advertisement(dbus.service.Object):
         self.ad_type = advertising_type
         self.service_uuids = [EBIKE_SERVICE_UUID]
         self.local_name = "Volt-EBike-RPI4"
-        self.include_tx_power = True
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -316,7 +315,6 @@ class Advertisement(dbus.service.Object):
             "Type": self.ad_type,
             "ServiceUUIDs": dbus.Array(self.service_uuids, signature="s"),
             "LocalName": dbus.String(self.local_name),
-            "Includes": dbus.Array(["tx-power"], signature="s"),
         }
         return {"org.bluez.LEAdvertisement1": properties}
 

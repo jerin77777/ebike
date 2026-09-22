@@ -23,6 +23,7 @@ class _BluetoothModalState extends State<BluetoothModal>
     with SingleTickerProviderStateMixin {
   final EbikeBluetoothService _bt = EbikeBluetoothService.instance;
   List<ScanResult> _scanResults = [];
+  List<BluetoothDevice> _bondedDevices = [];
   bool _isScanning = false;
   bool _onlyShowEbike = true;
   String? _connectingDeviceId;
@@ -37,6 +38,8 @@ class _BluetoothModalState extends State<BluetoothModal>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    _loadBondedDevices();
 
     _scanSub = FlutterBluePlus.scanResults.listen((results) {
       if (mounted) {
@@ -64,6 +67,20 @@ class _BluetoothModalState extends State<BluetoothModal>
     }
   }
 
+  Future<void> _loadBondedDevices() async {
+    final bonded = await _bt.getBondedDevices();
+    final system = await _bt.getSystemDevices();
+    final combined = <String, BluetoothDevice>{};
+    for (final d in [...bonded, ...system]) {
+      combined[d.remoteId.str] = d;
+    }
+    if (mounted) {
+      setState(() {
+        _bondedDevices = combined.values.toList();
+      });
+    }
+  }
+
   @override
   void dispose() {
     _scanSub?.cancel();
@@ -74,24 +91,31 @@ class _BluetoothModalState extends State<BluetoothModal>
 
   void _startScan() {
     setState(() => _scanResults = []);
+    _loadBondedDevices();
     _bt.startScan();
+  }
+
+  bool _isEbikeName(String name) {
+    if (name.isEmpty) return false;
+    final n = name.toLowerCase().replaceAll('-', '').replaceAll('_', '').replaceAll(' ', '');
+    return n.contains('volt') ||
+        n.contains('ebike') ||
+        n.contains('rpi') ||
+        n.contains('raspberry') ||
+        n.contains('bike');
   }
 
   bool _isEbikeDevice(ScanResult result) {
     final hasServiceUuid = result.advertisementData.serviceUuids.any(
       (uuid) => uuid.toString().toLowerCase() == ebikeServiceUuid.toLowerCase(),
     );
-    final name = result.device.platformName.toLowerCase();
-    final advName = result.advertisementData.advName.toLowerCase();
-    return hasServiceUuid ||
-        name.contains('volt') ||
-        name.contains('ebike') ||
-        name.contains('rpi') ||
-        name.contains('raspberry') ||
-        advName.contains('volt') ||
-        advName.contains('ebike') ||
-        advName.contains('rpi') ||
-        advName.contains('raspberry');
+    final name = result.device.platformName;
+    final advName = result.advertisementData.advName;
+    return hasServiceUuid || _isEbikeName(name) || _isEbikeName(advName);
+  }
+
+  bool _isEbikeBonded(BluetoothDevice dev) {
+    return _isEbikeName(dev.platformName);
   }
 
   Future<void> _connectToDevice(BluetoothDevice device) async {
@@ -307,10 +331,18 @@ class _BluetoothModalState extends State<BluetoothModal>
 
   Widget _buildScanningView(bool isDark, Color primaryColor) {
     final ebikeResults = _scanResults.where(_isEbikeDevice).toList();
-    final visibleResults = _onlyShowEbike ? ebikeResults : _scanResults;
+    final visibleScanResults = _onlyShowEbike ? ebikeResults : _scanResults;
     final otherCount = _scanResults.length - ebikeResults.length;
 
-    if (visibleResults.isEmpty) {
+    final ebikeBonded = _bondedDevices.where(_isEbikeBonded).toList();
+    final visibleBonded = _onlyShowEbike ? ebikeBonded : _bondedDevices;
+
+    final hasAnyVisible = visibleBonded.isNotEmpty || visibleScanResults.isNotEmpty;
+
+    if (!hasAnyVisible) {
+      final totalHidden = (_scanResults.length - visibleScanResults.length) +
+          (_bondedDevices.length - visibleBonded.length);
+
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -360,13 +392,13 @@ class _BluetoothModalState extends State<BluetoothModal>
                   style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   textAlign: TextAlign.center,
                 ),
-                if (_onlyShowEbike && otherCount > 0) ...[
+                if (_onlyShowEbike && totalHidden > 0) ...[
                   const SizedBox(height: 16),
                   TextButton.icon(
                     onPressed: () => setState(() => _onlyShowEbike = false),
                     icon: const Icon(Icons.tune_rounded, size: 16),
                     label: Text(
-                      "$otherCount non-ebike device${otherCount > 1 ? 's' : ''} hidden • Show all",
+                      "$totalHidden device${totalHidden > 1 ? 's' : ''} found • Show all",
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
@@ -398,14 +430,14 @@ class _BluetoothModalState extends State<BluetoothModal>
                       label: const Text("Scan Again"),
                       onPressed: _startScan,
                     ),
-                    if (_onlyShowEbike && otherCount > 0) ...[
+                    if (_onlyShowEbike && totalHidden > 0) ...[
                       const SizedBox(width: 8),
                       OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () => setState(() => _onlyShowEbike = false),
-                        child: Text("Show All ($otherCount)"),
+                        child: Text("Show All ($totalHidden)"),
                       ),
                     ],
                   ],
@@ -416,6 +448,8 @@ class _BluetoothModalState extends State<BluetoothModal>
         ),
       );
     }
+
+    final totalFound = visibleBonded.length + visibleScanResults.length;
 
     return Column(
       children: [
@@ -436,7 +470,7 @@ class _BluetoothModalState extends State<BluetoothModal>
                   Text(
                     _onlyShowEbike
                         ? "Showing E-Bike hardware only"
-                        : "Showing all Bluetooth devices",
+                        : "Showing all Bluetooth devices ($totalFound)",
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -452,7 +486,7 @@ class _BluetoothModalState extends State<BluetoothModal>
                 ),
                 onPressed: () => setState(() => _onlyShowEbike = !_onlyShowEbike),
                 child: Text(
-                  _onlyShowEbike ? "Show All (${_scanResults.length})" : "E-Bike Only",
+                  _onlyShowEbike ? "Show All" : "E-Bike Only",
                   style: TextStyle(fontSize: 12, color: primaryColor, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -460,104 +494,231 @@ class _BluetoothModalState extends State<BluetoothModal>
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: visibleResults.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final result = visibleResults[index];
-              final dev = result.device;
-              final isEbike = _isEbikeDevice(result);
-              final displayName = dev.platformName.isNotEmpty
-                  ? dev.platformName
-                  : (result.advertisementData.advName.isNotEmpty
-                      ? result.advertisementData.advName
-                      : (isEbike ? 'Volt E-Bike Dashboard' : 'Unknown Peripheral'));
-              final isConnectingThis = _connectingDeviceId == dev.remoteId.str;
+            children: [
+              // 1. Paired Devices (from phone settings)
+              if (visibleBonded.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 6, top: 4),
+                  child: Text(
+                    "PAIRED IN PHONE SETTINGS",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      color: isDark ? Colors.white54 : Colors.grey[600],
+                    ),
+                  ),
+                ),
+                ...visibleBonded.map((dev) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildBondedDeviceTile(dev, isDark, primaryColor),
+                    )),
+                if (visibleScanResults.isNotEmpty) const SizedBox(height: 8),
+              ],
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: isEbike
-                      ? primaryColor.withValues(alpha: isDark ? 0.2 : 0.08)
-                      : (isDark ? const Color(0xFF282D3F) : const Color(0xFFF7F9FC)),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isEbike ? primaryColor : Colors.transparent,
-                    width: isEbike ? 1.5 : 0,
-                  ),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isEbike ? primaryColor : Colors.grey.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isEbike ? Icons.pedal_bike_rounded : Icons.bluetooth_rounded,
-                      color: isEbike ? Colors.white : Colors.grey,
-                      size: 22,
-                    ),
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          displayName,
-                          style: TextStyle(
-                            fontWeight: isEbike ? FontWeight.bold : FontWeight.w500,
-                            fontSize: 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+              // 2. Discovered Devices (live scan)
+              if (visibleScanResults.isNotEmpty) ...[
+                if (visibleBonded.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 6, top: 4),
+                    child: Text(
+                      "DISCOVERED NEARBY",
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                        color: isDark ? Colors.white54 : Colors.grey[600],
                       ),
-                      if (isEbike)
-                        Container(
-                          margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: primaryColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            "E-BIKE HOST",
-                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                  subtitle: Text(
-                    "${dev.remoteId.str} • RSSI: ${result.rssi} dBm",
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                  ),
-                  trailing: isConnectingThis
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2.5, color: primaryColor),
-                        )
-                      : ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isEbike ? primaryColor : (isDark ? Colors.white24 : Colors.grey[200]),
-                            foregroundColor: isEbike ? Colors.white : (isDark ? Colors.white : Colors.black87),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          onPressed: () => _connectToDevice(dev),
-                          child: Text(
-                            isEbike ? "Connect" : "Pair",
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                        ),
-                ),
-              );
-            },
+                ...visibleScanResults.map((result) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildScanResultTile(result, isDark, primaryColor),
+                    )),
+              ],
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBondedDeviceTile(BluetoothDevice dev, bool isDark, Color primaryColor) {
+    final isEbike = _isEbikeBonded(dev);
+    final displayName = dev.platformName.isNotEmpty ? dev.platformName : 'Volt-EBike-RPI4';
+    final isConnectingThis = _connectingDeviceId == dev.remoteId.str;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isEbike
+            ? primaryColor.withValues(alpha: isDark ? 0.2 : 0.08)
+            : (isDark ? const Color(0xFF282D3F) : const Color(0xFFF7F9FC)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEbike ? primaryColor : Colors.transparent,
+          width: isEbike ? 1.5 : 0,
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isEbike ? primaryColor : Colors.grey.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            isEbike ? Icons.pedal_bike_rounded : Icons.bluetooth_rounded,
+            color: isEbike ? Colors.white : Colors.grey,
+            size: 22,
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                displayName,
+                style: TextStyle(
+                  fontWeight: isEbike ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 15,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isEbike)
+              Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  "PAIRED E-BIKE",
+                  style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Text(
+          "${dev.remoteId.str} • Paired with Phone",
+          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+        ),
+        trailing: isConnectingThis
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: primaryColor),
+              )
+            : ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () => _connectToDevice(dev),
+                child: const Text(
+                  "Connect",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildScanResultTile(ScanResult result, bool isDark, Color primaryColor) {
+    final dev = result.device;
+    final isEbike = _isEbikeDevice(result);
+    final displayName = dev.platformName.isNotEmpty
+        ? dev.platformName
+        : (result.advertisementData.advName.isNotEmpty
+            ? result.advertisementData.advName
+            : (isEbike ? 'Volt E-Bike Dashboard' : 'Unknown Peripheral'));
+    final isConnectingThis = _connectingDeviceId == dev.remoteId.str;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isEbike
+            ? primaryColor.withValues(alpha: isDark ? 0.2 : 0.08)
+            : (isDark ? const Color(0xFF282D3F) : const Color(0xFFF7F9FC)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEbike ? primaryColor : Colors.transparent,
+          width: isEbike ? 1.5 : 0,
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isEbike ? primaryColor : Colors.grey.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            isEbike ? Icons.pedal_bike_rounded : Icons.bluetooth_rounded,
+            color: isEbike ? Colors.white : Colors.grey,
+            size: 22,
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                displayName,
+                style: TextStyle(
+                  fontWeight: isEbike ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 15,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isEbike)
+              Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  "E-BIKE HOST",
+                  style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Text(
+          "${dev.remoteId.str} • RSSI: ${result.rssi} dBm",
+          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+        ),
+        trailing: isConnectingThis
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: primaryColor),
+              )
+            : ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isEbike ? primaryColor : (isDark ? Colors.white24 : Colors.grey[200]),
+                  foregroundColor: isEbike ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () => _connectToDevice(dev),
+                child: Text(
+                  isEbike ? "Connect" : "Pair",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+      ),
     );
   }
 }

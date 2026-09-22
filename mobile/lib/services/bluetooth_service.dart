@@ -106,7 +106,7 @@ class EbikeBluetoothService {
   bool get isConnected => _currentState == BluetoothConnectionState.connected;
 
   /// Start scanning for devices (filtered for e-bike or general scan)
-  Future<void> startScan({Duration timeout = const Duration(seconds: 8)}) async {
+  Future<void> startScan({Duration timeout = const Duration(seconds: 12)}) async {
     // Check adapter availability
     final isSupported = await FlutterBluePlus.isSupported;
     if (!isSupported) {
@@ -120,15 +120,44 @@ class EbikeBluetoothService {
       } catch (_) {}
     }
 
-    await FlutterBluePlus.startScan(
-      timeout: timeout,
-      androidUsesFineLocation: true,
-    );
+    try {
+      if (FlutterBluePlus.isScanningNow) {
+        await FlutterBluePlus.stopScan();
+      }
+      await FlutterBluePlus.startScan(
+        timeout: timeout,
+        androidUsesFineLocation: false,
+      );
+    } catch (e) {
+      debugPrint("Error starting BLE scan: $e");
+    }
+  }
+
+  /// Fetch devices already paired/bonded with Android
+  Future<List<BluetoothDevice>> getBondedDevices() async {
+    try {
+      return await FlutterBluePlus.bondedDevices;
+    } catch (e) {
+      debugPrint("Error fetching bonded devices: $e");
+      return [];
+    }
+  }
+
+  /// Fetch devices connected to the Android system
+  Future<List<BluetoothDevice>> getSystemDevices() async {
+    try {
+      return await FlutterBluePlus.systemDevices([]);
+    } catch (e) {
+      debugPrint("Error fetching system devices: $e");
+      return [];
+    }
   }
 
   /// Stop active scan
   Future<void> stopScan() async {
-    await FlutterBluePlus.stopScan();
+    try {
+      await FlutterBluePlus.stopScan();
+    } catch (_) {}
   }
 
   /// Connect & pair with a selected device (e.g. Raspberry Pi 4B)
