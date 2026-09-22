@@ -54,7 +54,11 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
 
   final List<Map<String, dynamic>> _rideModes = [
     {'name': 'Eco', 'icon': Icons.eco, 'color': Colors.green},
-    {'name': 'Cruise', 'icon': Icons.electric_bike_rounded, 'color': Colors.blue},
+    {
+      'name': 'Cruise',
+      'icon': Icons.electric_bike_rounded,
+      'color': Colors.blue,
+    },
     {'name': 'Sport', 'icon': Icons.flash_on, 'color': Colors.orange},
   ];
 
@@ -126,7 +130,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
   void _cycleMode() {
     final modes = ['Eco', 'Cruise', 'Sport'];
     final current = _selectedMode ?? 'Eco';
-    final idx = modes.indexWhere((m) => m.toLowerCase() == current.toLowerCase());
+    final idx = modes.indexWhere(
+      (m) => m.toLowerCase() == current.toLowerCase(),
+    );
     final nextMode = modes[(idx + 1) % modes.length];
     setState(() => _selectedMode = nextMode);
     if (_isBtConnected) {
@@ -201,7 +207,7 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _isBtConnected ? 'Connected' : 'Pair Pi',
+                    _isBtConnected ? 'Connected' : 'Pair',
                     style: TextStyle(
                       color: _isBtConnected ? Colors.green : primaryColor,
                       fontSize: 12,
@@ -279,7 +285,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
-                                  _batteryLevel != null ? '$_batteryLevel%' : '--',
+                                  _batteryLevel != null
+                                      ? '$_batteryLevel%'
+                                      : '--',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 38,
@@ -563,7 +571,9 @@ class _EbikeHomeScreenState extends State<EbikeHomeScreen> {
               height: bodyHeight * 0.55,
               decoration: const BoxDecoration(
                 color: Colors.white70,
-                borderRadius: BorderRadius.horizontal(right: Radius.circular(2)),
+                borderRadius: BorderRadius.horizontal(
+                  right: Radius.circular(2),
+                ),
               ),
             ),
           ),

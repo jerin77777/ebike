@@ -25,11 +25,8 @@ class EbikeNavigationWidget extends StatefulWidget {
   State<EbikeNavigationWidget> createState() => _EbikeNavigationWidgetState();
 }
 
-class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
-    with SingleTickerProviderStateMixin {
+class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget> {
   late final MapController _mapController;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
 
   StreamSubscription<double>? _speedSub;
   StreamSubscription<MapDestination?>? _destSub;
@@ -42,15 +39,6 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
     super.initState();
     _dest = widget.destination;
     _mapController = MapController();
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
 
     // Initial fit bounds on startup
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -121,7 +109,6 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
   void dispose() {
     _destSub?.cancel();
     _speedSub?.cancel();
-    _pulseController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -245,51 +232,16 @@ class _EbikeNavigationWidgetState extends State<EbikeNavigationWidget>
                       ),
                     ),
 
-                  // 2. Destination Marker with animated pulsing ring
+                  // 2. Destination Marker (Red Pin as in phone app)
                   Marker(
                     point: destLatLng,
-                    width: 70,
-                    height: 70,
-                    child: AnimatedBuilder(
-                      animation: _pulseAnimation,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _pulseAnimation.value,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF0066FF).withValues(alpha: 0.3),
-                                ),
-                              ),
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF0066FF),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF0066FF).withValues(alpha: 0.6),
-                                      blurRadius: 12,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.navigation,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    width: 50,
+                    height: 50,
+                    alignment: Alignment.topCenter,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Colors.redAccent,
+                      size: 44,
                     ),
                   ),
                 ],
