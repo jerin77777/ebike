@@ -7,7 +7,7 @@ class Pallet {
   static Color font1 = Colors.white;
 }
 
-bool debug = false;
+bool debug = true;
 bool showBattery = false;
 
 enum BtConnectionState { disconnected, advertising, connected }
